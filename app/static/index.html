@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ширма мастера</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">🐉 <b>Ширма мастера</b></div>
+  <div class="hdr-info">
+    <span id="conn" class="pill off">нет связи</span>
+    <button id="invite-btn" class="ghost" title="Скопировать ссылку для игроков">🔗 Приглашение</button>
+    <button id="group-btn" class="ghost">💬 Группа</button>
+    <a href="/logout" class="ghost btn">Выйти</a>
+  </div>
+</header>
+
+<main>
+  <section class="col players-col">
+    <div class="col-h"><h2>Партия</h2><label class="sel-all"><input type="checkbox" id="sel-all"> все</label></div>
+    <div id="players"></div>
+    <p id="no-players" class="hint hidden">Пока никого. Отправь друзьям ссылку-приглашение (кнопка 🔗 сверху) — они откроют бота и появятся здесь.</p>
+  </section>
+
+  <section class="col feed-col">
+    <div class="col-h"><h2>Броски</h2>
+      <div class="row gap"><label class="hint"><input type="checkbox" id="only-hidden"> только тайные</label><button class="ghost sm" id="clear">Очистить</button></div>
+    </div>
+    <div id="feed"></div>
+  </section>
+
+  <section class="col tools-col">
+    <div class="card">
+      <h3>🎯 Попросить бросок</h3>
+      <div class="hint" id="ask-target">У всех игроков</div>
+      <div class="seg" id="ask-kind">
+        <button data-k="k" class="on">Навык</button><button data-k="c">Проверка</button><button data-k="s">Спас</button><button data-k="i">Инициатива</button><button data-k="f">Формула</button>
+      </div>
+      <select id="ask-skill"></select>
+      <select id="ask-ab" class="hidden">
+        <option value="str">Сила</option><option value="dex">Ловкость</option><option value="con">Телосложение</option>
+        <option value="int">Интеллект</option><option value="wis">Мудрость</option><option value="cha">Харизма</option>
+      </select>
+      <input id="ask-formula" class="hidden" placeholder="например 2d6+3">
+      <input id="ask-title" placeholder="Подпись (необязательно)">
+      <label class="hint"><input type="checkbox" id="ask-hidden"> результат видит только мастер</label>
+      <button class="primary" id="ask-go">Отправить запрос в Telegram</button>
+    </div>
+
+    <div class="card">
+      <h3>🎲 Бросок мастера</h3>
+      <div class="dice-row" id="gm-dice"></div>
+      <div class="row gap"><input id="gm-formula" placeholder="1d20+5" value="1d20"><input id="gm-title" placeholder="Что бросаем"></div>
+      <div class="seg" id="gm-adv"><button data-a="0" class="on">Обычно</button><button data-a="1">Преимущ.</button><button data-a="-1">Помеха</button></div>
+      <label class="hint"><input type="checkbox" id="gm-public"> показать игрокам в группе</label>
+      <button class="primary" id="gm-go">Бросить</button>
+      <div id="gm-result" class="gm-result"></div>
+    </div>
+
+    <div class="card">
+      <h3>⚔️ Инициатива</h3>
+      <div class="hint">Броски «Инициатива» игроков попадают сюда сами.</div>
+      <div class="row gap"><input id="ini-name" placeholder="Монстр"><input id="ini-bonus" placeholder="+2" class="short"><button id="ini-add">+</button></div>
+      <ol id="ini-list"></ol>
+      <div class="row gap"><button id="ini-ask" class="ghost">Запросить у всех</button><button id="ini-next">Следующий ход ▶</button><button id="ini-clear" class="ghost">Сброс</button></div>
+      <div class="hint" id="ini-round"></div>
+    </div>
+
+    <div class="card">
+      <h3>📜 Сообщение игрокам</h3>
+      <textarea id="msg-text" rows="3" placeholder="Вы слышите шорох за дверью…"></textarea>
+      <button id="msg-go">Отправить выбранным</button>
+    </div>
+  </section>
+</main>
+
+<dialog id="editor">
+  <form method="dialog" id="ed-form">
+    <h3>Персонаж</h3>
+    <div class="grid2">
+      <label>Имя<input name="name"></label>
+      <label>Класс<input name="cls"></label>
+      <label>Уровень<input name="lvl" type="number" min="1" max="20"></label>
+      <label>КД<input name="ac" type="number" min="0" max="40"></label>
+      <label>Хиты<input name="hp" type="number"></label>
+      <label>Макс. хиты<input name="mhp" type="number" min="1"></label>
+    </div>
+    <h4>Характеристики и спасброски</h4>
+    <div class="stats-ed" id="ed-stats"></div>
+    <h4>Владение навыками</h4>
+    <div class="skills-ed" id="ed-skills"></div>
+    <div class="row gap end">
+      <button type="button" class="danger ghost" id="ed-del">Удалить игрока</button>
+      <span class="grow"></span>
+      <button value="cancel" class="ghost">Отмена</button>
+      <button value="save" class="primary" id="ed-save">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
