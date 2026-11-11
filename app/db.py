@@ -110,7 +110,7 @@ class DB:
         self.c.execute("CREATE UNIQUE INDEX IF NOT EXISTS char_game_player ON characters(game_id, tg_id) WHERE tg_id IS NOT NULL")
         for table, cols in (("rolls", {"game_id": "INTEGER", "char_id": "INTEGER"}),
                             ("requests", {"game_id": "INTEGER", "char_id": "INTEGER", "grp": "TEXT", "status": "TEXT DEFAULT 'pending'",
-                                          "vis": "TEXT DEFAULT 'player'", "ans_ts": "REAL"})):
+                                          "vis": "TEXT DEFAULT 'player'", "ans_ts": "REAL", "dc": "INTEGER"})):
             have = self._cols(table)
             for col, typ in cols.items():
                 if col not in have:
@@ -359,9 +359,9 @@ class DB:
         self.c.commit()
 
     # ---------- запросы бросков ----------
-    def add_request(self, tg_id: int, title: str, kind: str, gid=None, cid=None, grp=None, vis="player") -> int:
-        cur = self.c.execute("INSERT INTO requests(ts, tg_id, title, kind, game_id, char_id, grp, vis, status) VALUES(?,?,?,?,?,?,?,?, 'pending')",
-                             (time.time(), tg_id, title, kind, gid, cid, grp, vis))
+    def add_request(self, tg_id: int, title: str, kind: str, gid=None, cid=None, grp=None, vis="player", dc=None) -> int:
+        cur = self.c.execute("INSERT INTO requests(ts, tg_id, title, kind, game_id, char_id, grp, vis, status, dc) VALUES(?,?,?,?,?,?,?,?, 'pending', ?)",
+                             (time.time(), tg_id, title, kind, gid, cid, grp, vis, dc))
         self.c.commit()
         return cur.lastrowid
 

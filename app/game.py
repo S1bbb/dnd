@@ -248,7 +248,7 @@ class Game:
             "games": [{k: x[k] for k in ("id", "name", "status", "lobby", "updated")} for x in self.db.games()],
             "chars": self.public_chars(gid), "rolls": self.db.rolls(gid, 200), "requests": self.db.requests(gid),
             "lobby_link": self.link(g["lobby"]) if g["lobby"] else None, "bot": self.me.get("username"),
-            "drafts": self.wiz.drafts(gid), "combat": st.get("combat"), "pending": st.get("pending", []), "session": st.get("session", 0),
+            "drafts": self.wiz.drafts(gid), "combat": st.get("combat"), "session": st.get("session", 0),
             "scene": st.get("scene"), "scenes": [{"id": s["id"], "name": s["name"]} for s in self.db.scenes(gid)],
             "skills": [s[0] for s in SKILLS], "monsters": sorted(MONSTERS), "effects": sorted(engine.EFFECTS),
             "conditions": engine.CONDITIONS, "adj_fields": engine.ADJ_FIELDS,
@@ -360,7 +360,7 @@ class Game:
         return self.record(None, title, dice.roll(formula, adv), who="Мастер", gid=gid, hidden=1)
 
     def roll_check(self, ch: dict, kind: str, key: str, physical: int | None = None, hidden: int = 0,
-                   title: str | None = None) -> dict:
+                   title: str | None = None, dc: int | None = None) -> dict:
         """Бросок по листу через движок. physical — выпавшее на настоящем d20 (сервер добавит модификатор)."""
         spec = engine.roll_spec(ch["data"], kind, key)
         t = title or spec["title"]
@@ -376,6 +376,8 @@ class Game:
         else:
             r = dice.roll(spec["formula"], spec["adv"])
         extra = {}
+        if dc:
+            extra["dc"], extra["ok"] = dc, r.total >= dc
         if spec.get("adv"):
             extra["adv"] = spec["adv"]
         if physical is not None:
@@ -385,6 +387,7 @@ class Game:
             crit = nat >= spec.get("crit", 20)
             dmg = dice.roll(spec["dmg"], crit=crit)
             extra["d"] = {**dmg.to_dict(), "txt": dmg.dice_text()}
+            extra["ap"] = {"k": "dmg", "n": dmg.total}
             if crit:
                 extra["c"] = 1
         entry = self.record(ch, t, r, extra, hidden)
@@ -401,7 +404,7 @@ class Game:
         return out
 
     # ---------- запросы мастера ----------
-    async def ask_roll(self, gid: int, cids: list[int], kind: str, title: str, vis: str = "player") -> list[int]:
+    async def ask_roll(self, gid: int, cids: list[int], kind: str, title: str, vis: str = "player", dc: int | None = None) -> list[int]:
         """kind: c:str | s:dex | k:3 | i:0 | f:2d6+1. vis: player (видит игрок и мастер) | gm (тайный) | all (всем игрокам)."""
         sent = []
         grp = secrets.token_hex(3)
@@ -410,7 +413,7 @@ class Game:
             if not ch or not ch["tg_id"] or ch["game_id"] != gid:
                 continue
             t = title or self.kind_title(ch["data"], kind)
-            rid = self.db.add_request(ch["tg_id"], t, kind, gid, cid, grp, vis)
+            rid = self.db.add_request(ch["tg_id"], t, kind, gid, cid, grp, vis, dc)
             try:
                 msg = await self.bot.send_widget(ch["tg_id"], widgets.load("request"),
                                                  chat_data={"i": rid, "t": t, "h": 1 if vis == "gm" else 0})
@@ -455,10 +458,13 @@ class Game:
         hidden = 1 if req["vis"] == "gm" else 0
         if k == "f":
             r = dice.manual(v, physical) if physical is not None else dice.roll(v)
-            entry = self.record(ch, req["title"], r, {"phys": 1} if physical is not None else None, hidden)
+            ex = {"phys": 1} if physical is not None else {}
+            if req.get("dc"):
+                ex.update(dc=req["dc"], ok=r.total >= req["dc"])
+            entry = self.record(ch, req["title"], r, ex, hidden)
             res = r.to_dict()
         else:
-            res = self.roll_check(ch, k, v, physical, hidden, req["title"])
+            res = self.roll_check(ch, k, v, physical, hidden, req["title"], req.get("dc"))
             entry = self.db.rolls(ch["game_id"], 1)[-1]
         self.db.update_request(rid, roll_id=entry["id"], status="done", ans_ts=time.time())
         shown = {"t": "?", "f": "", "r": [], "s": [], "b": 0, "c": 0, "h": 1} if hidden else res
@@ -560,6 +566,8 @@ class Game:
         cb = self.combat(gid)
         cb.update(on=True, round=1, turn=-1)
         for c in self.db.characters(gid):
+            self.db.delete(f"srest:{c['id']}")
+        for c in self.db.characters(gid):
             if c["tg_id"] and not any(x.get("cid") == c["id"] for x in cb["list"]):
                 cb["list"].append({"id": engine.uid(), "kind": "pc", "cid": c["id"], "name": c["data"].get("name") or "Игрок",
                                    "init": None, "dex": engine.derive(c["data"])["m"]["dex"]})
@@ -569,8 +577,7 @@ class Game:
         for x in cb["list"]:
             if x["kind"] == "pc":
                 await self.notify(self.db.character(x["cid"]), "⚔️ <b>Бой!</b> Сейчас придёт запрос инициативы.\n"
-                                  "Пока идёт бой, хиты, состояния и ресурсы меняет мастер. Ты бросаешь и объявляешь действия; "
-                                  "заклинания и умения из меню уйдут ему на подтверждение.")
+                                  "В свой ход объявляй действие и бросай. Урон, лечение и состояния применяет мастер.")
         if ask:
             await self.ask_roll(gid, [x["cid"] for x in cb["list"] if x["kind"] == "pc"], "i:0", "Инициатива")
         return cb
@@ -626,16 +633,11 @@ class Game:
 
     async def combat_end(self, gid: int) -> None:
         cb = self.combat(gid)
-        st = self.game_state(gid)
-        if st.get("pending"):
-            st["pending"] = []
-            self.save_state(gid, st)
-            self.emit({"type": "pending", "pending": []}, gid)
         self.auto_journal(gid, f"🏁 Бой окончен (раундов: {cb.get('round', 0)})",
                           ", ".join(f"{x['name']} {x.get('hp', '')}/{x.get('mhp', '')}" for x in cb["list"] if x["kind"] == "npc"))
         for x in cb["list"]:
             if x["kind"] == "pc":
-                await (self.notify(self.db.character(x["cid"]), "🏁 Бой окончен — снова можешь сам вести свой лист (/menu)."))
+                await (self.notify(self.db.character(x["cid"]), "🏁 Бой окончен."))
         self.save_combat(gid, {"on": False, "round": 0, "turn": -1, "list": []})
 
     def npc_update(self, gid: int, eid: str, **kw) -> dict:
@@ -678,42 +680,36 @@ class Game:
         if hit:
             r = dice.roll(f"1d20{hit:+d}")
             d = dice.roll(dmg, crit=r.crit)
-            return self.record(None, f"{x['name']}: {n}", r, {"d": {**d.to_dict(), "txt": d.dice_text()}}, hidden=1, who=x["name"], gid=gid)
+            return self.record(None, f"{x['name']}: {n}", r, {"d": {**d.to_dict(), "txt": d.dice_text()}, "ap": {"k": "dmg", "n": d.total}},
+                               hidden=1, who=x["name"], gid=gid)
         d = dice.roll(dmg)
-        return self.record(None, f"{x['name']}: {n}", d, hidden=1, who=x["name"], gid=gid)
+        return self.record(None, f"{x['name']}: {n}", d, {"ap": {"k": "dmg", "n": d.total}}, hidden=1, who=x["name"], gid=gid)
 
-    # ---------- заявки игроков в бою ----------
-    def pending(self, gid: int) -> list[dict]:
-        return self.game_state(gid).get("pending", [])
-
-    def propose(self, ch: dict, kind: str, args: dict, label: str) -> dict:
-        gid = ch["game_id"]
-        st = self.game_state(gid)
-        p = {"id": engine.uid(), "cid": ch["id"], "who": self.who(ch), "kind": kind, "args": args, "label": label, "ts": time.time()}
-        st.setdefault("pending", []).append(p)
-        self.save_state(gid, st)
-        self.emit({"type": "pending", "pending": st["pending"], "new": p}, gid)
-        return p
-
-    async def resolve(self, gid: int, pid: str, ok: bool) -> str:
-        st = self.game_state(gid)
-        p = next((x for x in st.get("pending", []) if x["id"] == pid), None)
-        if not p:
-            raise ValueError("Заявка уже решена")
-        st["pending"] = [x for x in st["pending"] if x["id"] != pid]
-        self.save_state(gid, st)  # сначала убираем — повторное нажатие не применит дважды
-        self.emit({"type": "pending", "pending": st["pending"]}, gid)
-        ch = self.db.character(p["cid"])
-        if not ok:
-            await self.notify(ch, f"❌ Мастер отклонил: {E(p['label'])}")
-            return "отклонено"
-        try:
-            text = await self.ui.apply_proposal(p)
-        except ValueError as e:
-            await self.notify(ch, f"🤔 Не вышло: {E(p['label'])} — {E(str(e))}")
-            raise
-        await self.notify(ch, "✅ Мастер подтвердил.\n" + text)
-        return text
+    # ---------- отдых партии (объявляет мастер) ----------
+    async def party_rest(self, gid: int, kind: str, cids: list[int] | None = None) -> list[str]:
+        out = []
+        for c in self.db.characters(gid):
+            if cids and c["id"] not in cids:
+                continue
+            if not engine.is_v2(c["data"]) and kind == "short":
+                continue
+            if kind == "long":
+                self.db.delete(f"srest:{c['id']}")
+                _, log_ = self.mutate(c["id"], engine.long_rest, "Мастер", "долгий отдых", journal=False)
+                await self.notify(c, "🛌 <b>Долгий отдых.</b> Хиты, ячейки и умения восстановлены.")
+            else:
+                _, log_ = self.mutate(c["id"], lambda d: engine.short_rest(d, []), "Мастер", "короткий отдых", journal=False)
+                self.db.set(f"srest:{c['id']}", 1)
+                if c["tg_id"]:
+                    try:
+                        await self.bot.send_message(c["tg_id"], "☕ <b>Короткий отдых.</b> Умения «до короткого отдыха» восстановлены.\n"
+                                                    "Хочешь подлечиться — потрать кости хитов:",
+                                                    reply_markup={"inline_keyboard": [[{"text": "☕ Потратить кости хитов", "callback_data": "p:rest"}]]})
+                    except TelegramError:
+                        pass
+            out.append(c["data"].get("name") or "?")
+        self.auto_journal(gid, f"{'🛌 Долгий' if kind == 'long' else '☕ Короткий'} отдых", ", ".join(out))
+        return out
 
     # ---------- фоновые задачи ----------
     async def backups(self, folder: str, keep: int = 14) -> None:

@@ -273,3 +273,19 @@ dialog.wide { width: min(860px, calc(100vw - 32px)); }
 .big-hp i { color: var(--blue); font-style: normal; font-size: 16px; }
 .ed-actions { margin-bottom: 8px; }
 .tabs button { min-width: 0; padding: 8px 6px; }
+
+/* мастер-новичок */
+.tab-hint { font-size: 13px; color: var(--hint); margin: -6px 0 10px; }
+.lbl { font-size: 13px; font-weight: 700; color: var(--gold); margin-top: 4px; }
+.guide { background: #2b2116; border: 1px solid var(--gold2); border-radius: var(--r); padding: 10px 14px; margin-top: 10px; line-height: 1.5; font-size: 14px; }
+.guide ol { margin: 6px 0 0; padding-left: 20px; }
+.guide button { width: auto; margin: 2px 2px 0 0; }
+.mt { margin-top: 14px; }
+.feedbox { display: flex; flex-direction: column; gap: 6px; }
+.okv { color: var(--green); font-weight: 700; }
+.badv { color: var(--red); font-weight: 700; }
+.ap { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.ap button { width: auto; }
+.ap .heal-b, .ap-tg.pc { }
+.ap-tg.npc { border-color: #6a2c25; }
+.ap .ap-n { width: 70px; }

@@ -24,13 +24,13 @@ HELP = (
     "🎲 <b>Бросать</b> — кнопки в листе ниже: проверка, спасбросок, навык, атака. Мастер видит броски сразу.\n"
     "☰ <b>Всё остальное</b> — меню под листом (или /menu): заклинания, вещи, умения, отдых.\n"
     "🎯 <b>Мастер просит бросок</b> — придёт карточка с кнопкой «Бросить».\n"
+    "🧙 <b>Урон, лечение, состояния, отдых и добычу</b> применяет мастер — тебе только объявить, что делаешь.\n"
     "🎲 <b>Свои кубики</b> — напиши, что выпало на d20: <code>17 скрытность</code>, или просто число в ответ на запрос."
 )
-# В бою характеристики персонажа меняет только мастер: эти кнопки игрока заблокированы,
-# а заклинания, умения и предметы уходят мастеру заявкой (подтвердить / отклонить на сайте).
-COMBAT_LOCK = {"dmg", "heal", "temp", "gold", "cd", "ex", "dropc", "rme", "rest", "hd", "short", "long",
-               "eq", "q", "add", "r", "sl", "undo", "healself", "lt", "hpm"}
-LOCK_MSG = "⚔️ Идёт бой: хиты, состояния, ресурсы и вещи меняет мастер. Скажи ему, что случилось."
+# Обязанности, как за обычным столом: игрок бросает, объявляет и тратит СВОИ ресурсы (ячейки, умения, зелья),
+# а всё, что с героем делает мир — урон, лечение, состояния, отдых, добыча и золото — применяет мастер на сайте.
+GM_ONLY = {"dmg", "heal", "temp", "gold", "cd", "ex", "rme", "long", "add", "r", "sl", "undo", "healself", "hpm"}
+GM_MSG = "Это делает мастер: урон, лечение, состояния, отдых, вещи и золото. Скажи ему — он применит на сайте."
 FORMULA_RE = re.compile(r"^\s*[\dкдd%+\-\s]*[dкд]\d*[\dкдdkhl%+\-\s]*$", re.I)
 PHYS_RE = re.compile(r"^\s*(\d{1,2})\s+(.{3,})$")
 FEATURE_RES = {"Ярость": "rage", "Второе дыхание": "second_wind", "Всплеск действий": "action_surge",
@@ -238,58 +238,25 @@ class BotUI:
         await self.bot.send_message(ch["tg_id"], f"🎲 <b>{r.total}</b>{mark}\n<i>{E(r.formula)}: {E(r.dice_text())}</i>")
 
     async def do_undo(self, chat_id, ch):
-        if self.in_combat(ch):
-            return await self.bot.send_message(chat_id, LOCK_MSG)
-        h = self.db.last_history(ch["id"])
-        if not h:
-            return await self.bot.send_message(chat_id, "Нечего отменять.")
-        if h["actor"] != self.g.who(ch):
-            return await self.bot.send_message(chat_id, "Последнее изменение сделал мастер — отменить может только он.")
-        label = self.g.undo(ch["id"], self.g.who(ch))
-        await self.bot.send_message(chat_id, f"↩️ Отменено: {E(label)}")
+        await self.bot.send_message(chat_id, "↩️ Ошибся? Скажи мастеру — он отменит в истории персонажа.")
 
     # ---------- ввод чисел и текста ----------
     async def on_input(self, ch, inp, text):
         op = inp["op"]
-        if op in ("dmg", "heal", "temp", "loh", "gold", "add_item") and self.in_combat(ch):
-            return await self.bot.send_message(ch["tg_id"], LOCK_MSG)
-        cid = ch["id"]
-        if op in ("dmg", "heal", "temp", "loh", "gold"):
-            mm = re.match(r"^\s*(\d+)\s*(.*)$", text)
+        if op == "loh":
+            mm = re.match(r"^\s*(\d+)", text)
             if not mm:
                 return await self.bot.send_message(ch["tg_id"], "Нужно число.")
-            n, rest = int(mm.group(1)), mm.group(2).strip().lower()
-            if op == "dmg":
-                _, log_ = self.mut(ch, lambda d: engine.damage(d, n, rest), f"урон {n}" + (f" ({rest})" if rest else ""))
-            elif op == "heal":
-                _, log_ = self.mut(ch, lambda d: engine.heal(d, n), f"лечение {n}")
-            elif op == "temp":
-                _, log_ = self.mut(ch, lambda d: engine.set_temp(d, n), f"временные хиты {n}")
-            elif op == "gold":
-                _, log_ = self.mut(ch, lambda d: d.update(gold=n) or [], f"золото = {n}")
-            else:
-                def loh(d):
-                    engine.use_res(d, "lay_on_hands", n)
-                    return engine.heal(d, n)
-                try:
-                    _, log_ = self.mut(ch, loh, f"Наложение рук на себя: лечение {n}")
-                except ValueError as e:
-                    return await self.bot.send_message(ch["tg_id"], f"🤔 {E(str(e))}")
-            if log_:
-                await self.bot.send_message(ch["tg_id"], "\n".join(E(x) for x in log_))
-            return await self.panel_main(ch["tg_id"], None, self.db.character(cid))
+            try:
+                out = self.feature_core(ch, "Наложение рук", self.g.who(ch), int(mm.group(1)))
+            except ValueError as e:
+                return await self.bot.send_message(ch["tg_id"], f"🤔 {E(str(e))}")
+            return await self.bot.send_message(ch["tg_id"], out, reply_markup=kb([[btn("⬅️ Меню", "main")]]))
         if op == "spell_search":
             return await self.panel_spells(ch["tg_id"], None, ch, 0, text)
         if op == "feat_search":
             return await self.panel_feats(ch["tg_id"], None, ch, 0, text)
-        if op == "add_item":
-            name = text.strip()[:60]
-            match = next((n for n in CATALOG if n.lower() == name.lower()), None) or \
-                next((n for n in CATALOG if n.lower().startswith(name.lower())), None)
-            it = make_item(match or name)
-            self.mut(ch, lambda d: d.setdefault("items", []).append(it), f"предмет: {it['n']}")
-            await self.bot.send_message(ch["tg_id"], f"🎒 Добавлено: {E(it['n'])}" + ("" if match else " (свой предмет)"))
-            return await self.panel_inv(ch["tg_id"], None, self.db.character(cid))
+        await self.bot.send_message(ch["tg_id"], GM_MSG)
 
     # ---------- главная панель ----------
     def main_text(self, ch) -> str:
@@ -305,7 +272,7 @@ class BotUI:
             cur = cb["list"][cb["turn"]] if 0 <= cb.get("turn", -1) < len(cb["list"]) else None
             mine = cur and cur.get("cid") == ch["id"]
             lines.insert(0, f"⚔️ <b>Идёт бой, раунд {cb['round']}</b>" + (" — <b>твой ход!</b>" if mine else (f", ходит {E(cur['name'])}" if cur and not cur.get('hidden') else ""))
-                         + "\n<i>Ты бросаешь и объявляешь действия. Хиты, состояния и ресурсы меняет мастер; заклинания и умения уходят ему на подтверждение.</i>\n")
+                         + "\n<i>Ты бросаешь и объявляешь действия. По кому попало и сколько урона — решает мастер.</i>\n")
         if d.get("dead"):
             lines.append("☠️ <b>Персонаж мёртв</b>")
         elif hp == 0:
@@ -330,28 +297,27 @@ class BotUI:
             lines.append(f"🎯 Мастер ждёт бросок: <b>{E(req['title'])}</b> (кнопка в виджете или пришли число с d20)")
         if d.get("lvl_pending"):
             lines.append("📈 <b>Доступен новый уровень!</b> /levelup")
+        if self.db.get(f"srest:{ch['id']}"):
+            lines.append("☕ <b>Мастер объявил короткий отдых</b> — можешь потратить кости хитов, чтобы подлечиться.")
         for w in D["warn"]:
             lines.append("⚠️ " + E(w))
         return "\n".join(lines)
 
     def main_kb(self, ch):
         d = ch["data"]
-        fight = self.in_combat(ch)
         rows = []
         if d.get("hp", 1) == 0 and not d.get("dead"):
             rows.append([btn("💀 Бросить спасбросок от смерти", "death")])
-        if d.get("lvl_pending") and not fight:
+        if d.get("lvl_pending") and not self.in_combat(ch):
             rows.append([btn("📈 Получить новый уровень", "lvl")])
+        if self.db.get(f"srest:{ch['id']}"):
+            rows.append([btn("☕ Потратить кости хитов", "rest")])
         rows.append([btn("🎲 Лист с бросками", "sheet"), btn("🎲 Кости", "dice")])
         if engine.is_v2(d):
             rows.append([btn("✨ Заклинания", "sp:0"), btn("⭐ Умения", "ft:0"), btn("🎒 Вещи", "inv")])
-        if not fight:
-            rows.append([btn("❤️ Хиты и урон", "hpm"), btn("🩹 Состояния", "cond")])
-            if engine.is_v2(d):
-                rows.append([btn("🏕 Отдых", "rest"), btn("🔋 Ресурсы и ячейки", "res")])
+        if d.get("conc"):
+            rows.append([btn(f"🧠 Прервать концентрацию ({d['conc']})", "dropc")])
         rows.append([btn("📜 Карточка героя", "info"), btn("📖 Журнал", "jr"), btn("🗺 Карта", "map")])
-        if not fight:
-            rows.append([btn("↩️ Отменить моё последнее действие", "undo")])
         return kb(rows)
 
     async def panel_hp(self, chat_id, msg_id, ch):
@@ -470,55 +436,31 @@ class BotUI:
         if r.get("kind") == "a":
             hit = dice.roll(f"1d20{r['hit']:+d}")
             dmg = dice.roll(r["dice"], crit=hit.crit)
-            self.g.record(ch, name, hit, {"d": {**dmg.to_dict(), "txt": dmg.dice_text()}})
+            self.g.record(ch, name, hit, {"d": {**dmg.to_dict(), "txt": dmg.dice_text()}, "ap": {"k": "dmg", "n": dmg.total, "t": r["type"]}})
             out.append(f"🎯 Атака: <b>{hit.total}</b>{' 💥' if hit.crit else ' 💀' if hit.fumble else ''} · урон <b>{dmg.total}</b> {E(r['type'])}")
         elif r.get("kind") in ("s", "d") and r.get("dice"):
             dmg = dice.roll(r["dice"])
-            self.g.record(ch, name, dmg)
+            self.g.record(ch, name, dmg, {"ap": {"k": "dmg", "n": dmg.total, "t": r["type"], "dc": r.get("dc"), "save": r.get("save"), "half": r.get("half")}})
             out.append((f"🛡 Цели: спасбросок {r['save']} СЛ {r['dc']}. " if r.get("kind") == "s" else "")
                        + f"Урон <b>{dmg.total}</b> {E(r['type'])}" + (" (половина при успехе)" if r.get("half") else ""))
         elif r.get("kind") == "s":
             out.append(f"🛡 Цели: спасбросок {r['save']} СЛ {r['dc']}")
         elif r.get("kind") == "h":
             h = dice.roll(r["dice"])
-            self.g.record(ch, name, h)
+            self.g.record(ch, name, h, {"ap": {"k": "heal", "n": h.total}})
             out.append(f"✚ Лечение <b>{h.total}</b>")
             heal = h.total
+        if len(out) > 1:
+            out.append("<i>Мастер увидит результат и применит его к целям.</i>")
         return "\n".join(out), heal
 
     async def do_cast(self, chat_id, msg_id, ch, idx, slot):
         s = self.my_spells(ch)[idx]
-        if self.in_combat(ch):
-            lv = "ритуалом" if slot == "r" else ("" if s["lvl"] == 0 else f"{slot} круг")
-            return await self.propose(ch, "cast", {"spell": s["n"], "slot": slot}, f"заклинание «{s['n']}» {lv}".strip())
         try:
-            text, heal = self.cast_core(ch, s["n"], slot, self.g.who(ch))
+            text, _ = self.cast_core(ch, s["n"], slot, self.g.who(ch))
         except ValueError as e:
             return await self.bot.send_message(chat_id, f"🤔 {E(str(e))}")
-        if heal:
-            self.db.set(f"heal:{ch['tg_id']}", heal)
-            return await self.bot.send_message(chat_id, text, reply_markup=kb([[btn(f"✚ На себя (+{heal})", "healself")], [btn("⬅️ Меню", "main")]]))
         await self.bot.send_message(chat_id, text, reply_markup=kb([[btn("⬅️ Меню", "main"), btn("✨ Заклинания", "sp:0")]]))
-
-    async def propose(self, ch, kind: str, args: dict, label: str) -> None:
-        """В бою игрок не меняет себя сам: действие уходит мастеру на подтверждение."""
-        self.g.propose(ch, kind, args, label)
-        await self.bot.send_message(ch["tg_id"], f"⏳ Отправил мастеру: <b>{E(label)}</b>.\nВ бою ресурсы и хиты меняет он — когда подтвердит, пришлю результат.")
-
-    async def apply_proposal(self, p: dict) -> str:
-        """Мастер подтвердил заявку игрока — выполнить её. Возвращает текст результата."""
-        ch = self.db.character(p["cid"])
-        actor = f"Мастер (заявка {self.g.who(ch)})"
-        if p["kind"] == "cast":
-            text, heal = self.cast_core(ch, p["args"]["spell"], p["args"]["slot"], actor)
-            if heal:
-                text += "\nКого лечить — мастер решит сам (на сайте ✚)."
-            return text
-        if p["kind"] == "feature":
-            return self.feature_core(ch, p["args"]["name"], actor)
-        if p["kind"] == "item":
-            return self.item_core(ch, p["args"]["i"], p["args"]["name"], actor)
-        raise ValueError("неизвестная заявка")
 
     async def panel_learn(self, chat_id, msg_id, ch, page=0):
         D = engine.derive(ch["data"])
@@ -607,9 +549,9 @@ class BotUI:
         rows = [[btn(("✅ " if it.get("eq") else "") + it["n"] + (f" ×{it['qty']}" if it.get("qty", 1) != 1 else "")
                      + (f" [{it['charges']}/{it.get('max_charges', it['charges'])}]" if it.get("max_charges") else ""), f"it:{i}")]
                 for i, it in enumerate(items[:40])]
-        rows.append([btn("➕ Добавить", "add"), btn(f"💰 {d.get('gold', 0)} зм", "gold")])
+        rows.append([btn(f"💰 {d.get('gold', 0)} зм", "noop")])
         rows.append([btn("⬅️ Меню", "main")])
-        await self.edit_or_send(chat_id, msg_id, "🎒 <b>Инвентарь</b> — ✅ надето/в руках. Нажми на предмет.", kb(rows))
+        await self.edit_or_send(chat_id, msg_id, "🎒 <b>Вещи</b> — ✅ надето или в руках. Нажми на предмет.\nНовые вещи и золото выдаёт мастер.", kb(rows))
 
     async def item_card(self, chat_id, msg_id, ch, i):
         it = ch["data"]["items"][i]
@@ -626,7 +568,7 @@ class BotUI:
             rows.append([btn("Снять" if it.get("eq") else "Надеть / взять в руки", f"eq:{i}")])
         if it.get("use") or it.get("kind") == "consumable" or it.get("max_charges"):
             rows.append([btn("🧪 Использовать", f"use:{i}")])
-        rows.append([btn("−1 шт", f"q:{i}:-1"), btn("+1 шт", f"q:{i}:1"), btn("🗑 Выбросить", f"q:{i}:x")])
+        rows.append([btn("−1 шт", f"q:{i}:-1"), btn("🗑 Выбросить", f"q:{i}:x")])
         rows.append([btn("⬅️ Инвентарь", "inv")])
         await self.edit_or_send(chat_id, msg_id, f"🎒 <b>{E(it['n'])}</b> ×{it.get('qty', 1)}\n" + "\n".join(E(x) for x in info), kb(rows))
 
@@ -673,31 +615,36 @@ class BotUI:
             return "channel"
         return next((v for k, v in FEATURE_RES.items() if name.startswith(k)), None)
 
-    def feature_core(self, ch, name: str, actor: str) -> str:
+    def feature_core(self, ch, name: str, actor: str, amount: int = 1) -> str:
         key = self.feature_key(name)
         extra = ""
+        heal = None
 
         def fn(d):
-            nonlocal extra
-            out = engine.use_res(d, key)
+            nonlocal extra, heal
+            out = engine.use_res(d, key, amount)
             if key == "second_wind":
-                r = dice.roll(f"1d10+{engine.class_level(d, 'fighter')}")
-                extra = f"✚ +{r.total}"
-                out += engine.heal(d, r.total)
+                heal = dice.roll(f"1d10+{engine.class_level(d, 'fighter')}")
+                extra = f"✚ {heal.total} — мастер добавит хиты"
+            if key == "lay_on_hands":
+                extra = f"✚ {amount} — мастер применит к цели"
             if key == "rage":
                 engine.add_effect(d, "Ярость", "Варвар")
             return out
         _, log_ = self.g.mutate(ch["id"], fn, actor, f"умение «{name}»")
+        if heal is not None:
+            self.g.record(ch, name, heal, {"ap": {"k": "heal", "n": heal.total, "self": ch["id"]}})
+        elif key == "lay_on_hands":
+            self.g.record(ch, name, dice.roll(str(amount)), {"ap": {"k": "heal", "n": amount}})
+        else:
+            self.g.record(ch, name, dice.roll("0"), {"note": "использовано"})
         return f"⚡ <b>{E(name)}</b> {extra}\n" + "\n".join(E(x) for x in log_)
 
     async def use_feature(self, chat_id, ch, i):
         f = self.my_feats(ch)[i]
-        key = self.feature_key(f["n"])
-        if self.in_combat(ch):
-            return await self.propose(ch, "feature", {"name": f["n"]}, f"умение «{f['n']}»")
-        if key == "lay_on_hands":
+        if self.feature_key(f["n"]) == "lay_on_hands":
             self.db.set(f"inp:{ch['tg_id']}", {"op": "loh"})
-            return await self.bot.send_message(chat_id, "✋ Сколько хитов вылечить на себе? (Союзнику — скажи мастеру.)")
+            return await self.bot.send_message(chat_id, "✋ Сколько хитов лечения потратить из запаса? Мастер применит к цели.")
         try:
             text = self.feature_core(ch, f["n"], self.g.who(ch))
         except ValueError as e:
@@ -711,6 +658,7 @@ class BotUI:
             if i is None:
                 raise ValueError(f"«{name}» больше нет в инвентаре")
         res_txt = ""
+        rolled = []
 
         def use(d):
             nonlocal res_txt
@@ -728,61 +676,51 @@ class BotUI:
                 x["qty"] = x.get("qty", 1) - 1
             if u.startswith("heal:"):
                 r = dice.roll(u[5:])
-                res_txt = f"✚ {r.total}"
-                out += engine.heal(d, r.total)
+                res_txt = f"✚ {r.total} — мастер добавит хиты"
+                rolled.append((r, {"ap": {"k": "heal", "n": r.total, "self": ch["id"]}}))
             elif u.startswith("dmg:"):
                 r = dice.roll(u[4:])
-                res_txt = f"💥 урон {r.total}"
+                res_txt = f"💥 урон {r.total} — мастер применит к цели"
+                rolled.append((r, {"ap": {"k": "dmg", "n": r.total}}))
             if x.get("qty", 1) <= 0 and not x.get("max_charges"):
                 d["items"].pop(i)
             return out
         _, log_ = self.g.mutate(ch["id"], use, actor, f"использован «{name}»")
+        for r, extra in rolled:
+            self.g.record(ch, name, r, extra)
         return f"🧪 {E(name)} {res_txt}\n" + "\n".join(E(x) for x in log_)
 
     # ---------- ресурсы, отдых, состояния ----------
     async def panel_res(self, chat_id, msg_id, ch):
         D = engine.derive(ch["data"])
-        rows = []
-        for r in D["res"]:
-            rows.append([btn(f"{r['n']} {r['left']}/{r['max']}", "noop"), btn("−", f"r:{r['key']}:1"), btn("+", f"r:{r['key']}:-1")])
-        for lv, v in D["slots"].items():
-            rows.append([btn(f"Ячейки {lv}: {v['left']}/{v['max']}", "noop"), btn("−", f"sl:{lv}:1"), btn("+", f"sl:{lv}:-1")])
+        lines = [f"🔋 {r['n']}: <b>{r['left']}/{r['max']}</b> ({'короткий' if r['reset'] == 'short' else 'долгий'} отдых)" for r in D["res"]]
+        lines += [f"🔮 Ячейки {lv} круга: <b>{v['left']}/{v['max']}</b>" for lv, v in D["slots"].items()]
         if D["pact"]:
-            p = D["pact"]
-            rows.append([btn(f"Договор {p['lvl']}: {p['left']}/{p['max']}", "noop"), btn("−", "sl:pact:1"), btn("+", "sl:pact:-1")])
-        for h in D["hd"]:
-            rows.append([btn(f"Кости хитов {h['die']}: {h['left']}/{h['max']}", "noop")])
-        rows.append([btn("⬅️ Меню", "main")])
-        await self.edit_or_send(chat_id, msg_id, "🔋 <b>Ресурсы</b>: − потратить, + вернуть.", kb(rows))
+            lines.append(f"🔮 Ячейки договора ({D['pact']['lvl']} круг): <b>{D['pact']['left']}/{D['pact']['max']}</b>")
+        lines += [f"🎲 Кости хитов {h['die']}: <b>{h['left']}/{h['max']}</b>" for h in D["hd"]]
+        await self.edit_or_send(chat_id, msg_id, "🔋 <b>Ресурсы</b> — тратятся сами, когда ты используешь умение или заклинание. "
+                                "Восстанавливаются, когда мастер объявляет отдых.\n\n" + ("\n".join(lines) or "Нет"), kb([[btn("⬅️ Меню", "main")]]))
 
-    async def panel_rest(self, chat_id, msg_id, ch, spend=None):
+    async def panel_rest(self, chat_id, msg_id, ch):
         D = engine.derive(ch["data"])
-        spend = spend if spend is not None else (self.db.get(f"rest:{ch['tg_id']}") or [])
-        rows = []
-        for h in D["hd"]:
-            left = h["left"] - spend.count(h["die"])
-            rows.append([btn(f"🎲 Потратить {h['die']} (осталось {left})", f"hd:{h['die']}")])
-        rows.append([btn(f"☕ Завершить короткий отдых ({len(spend)} костей)", "short")])
-        rows.append([btn("🛌 Долгий отдых (8 часов)", "long")])
-        rows.append([btn("⬅️ Меню", "main")])
+        if not self.db.get(f"srest:{ch['id']}"):
+            return await self.edit_or_send(chat_id, msg_id, "🏕 Отдых объявляет мастер. Когда он это сделает, здесь появится выбор костей хитов.",
+                                           kb([[btn("⬅️ Меню", "main")]]))
+        d = ch["data"]
+        rows = [[btn(f"🎲 Потратить {h['die']} (осталось {h['left']})", f"hd:{h['die']}")] for h in D["hd"] if h["left"]]
+        rows.append([btn("✅ Хватит, отдых окончен", "short")])
         await self.edit_or_send(chat_id, msg_id,
-                                "🏕 <b>Отдых</b>\n☕ <b>Короткий</b> (1 час): трать кости хитов — каждая лечит кость + ТЕЛ; "
-                                "возвращаются ресурсы «за короткий отдых» и ячейки колдуна.\n"
-                                "🛌 <b>Долгий</b> (8 часов, раз в сутки): все хиты, ячейки и ресурсы, половина костей хитов, −1 истощение.", kb(rows))
+                                f"☕ <b>Короткий отдых</b>. Хиты {d.get('hp', 0)}/{D['hp_max']['val']}.\n"
+                                "Каждая кость хитов лечит бросок кости + модификатор Телосложения. Кости вернутся на долгом отдыхе (половина).", kb(rows))
 
     async def panel_cond(self, chat_id, msg_id, ch):
         d = ch["data"]
-        cur = set(d.get("conds", []))
-        names = list(engine.CONDITIONS)
-        rows = [[btn(("✅ " if n in cur else "") + n, f"cd:{i}") for i, n in enumerate(names)][j:j + 2] for j in range(0, len(names), 2)]
-        rows.append([btn(f"Истощение {d.get('exh', 0)}", "noop"), btn("−", "ex:-1"), btn("+", "ex:1")])
-        if d.get("conc"):
-            rows.append([btn(f"🧠 Прервать концентрацию ({d['conc']})", "dropc")])
-        for e_ in d.get("effects", []):
-            rows.append([btn(f"✖ Снять «{e_['n']}»", f"rme:{e_['id']}")])
+        cur = list(d.get("conds", []))
+        text = "🩹 <b>Состояния</b> (накладывает и снимает мастер)\n\n" + ("\n".join(f"<b>{n}</b>: {E(engine.CONDITIONS[n])}" for n in cur) or "Нет")
+        if d.get("exh"):
+            text += f"\n\n<b>Истощение {d['exh']}</b>: {engine.EXHAUSTION[d['exh']]}"
+        rows = [[btn(f"🧠 Прервать концентрацию ({d['conc']})", "dropc")]] if d.get("conc") else []
         rows.append([btn("⬅️ Меню", "main")])
-        text = "🩹 <b>Состояния</b> — нажми, чтобы включить/выключить.\n\n" + "\n".join(
-            f"<b>{n}</b>: {E(engine.CONDITIONS[n])}" for n in cur) + (f"\n\n<b>Истощение {d['exh']}</b>: {engine.EXHAUSTION[d['exh']]}" if d.get("exh") else "")
         await self.edit_or_send(chat_id, msg_id, text, kb(rows))
 
     # ---------- журнал, игры, карта ----------
@@ -819,8 +757,8 @@ class BotUI:
         if not ch:
             return await self.answer(q, "Нет персонажа")
         note = None
-        if act in COMBAT_LOCK and self.in_combat(ch):
-            return await self.answer(q, LOCK_MSG, alert=True)
+        if act in GM_ONLY or (act == "q" and val.endswith(":1")):
+            return await self.answer(q, GM_MSG, alert=True)
         try:
             if act == "noop":
                 pass
@@ -899,11 +837,8 @@ class BotUI:
             elif act == "use":
                 i = int(val)
                 it = ch["data"]["items"][i]
-                if self.in_combat(ch):
-                    await self.propose(ch, "item", {"i": i, "name": it["n"]}, f"использовать «{it['n']}»")
-                else:
-                    text = self.item_core(ch, i, it["n"], self.g.who(ch))
-                    await self.bot.send_message(chat_id, text, reply_markup=kb([[btn("🎒 Вещи", "inv"), btn("⬅️ Меню", "main")]]))
+                text = self.item_core(ch, i, it["n"], self.g.who(ch))
+                await self.bot.send_message(chat_id, text, reply_markup=kb([[btn("🎒 Вещи", "inv"), btn("⬅️ Меню", "main")]]))
             elif act == "q":
                 i, _, dq = val.partition(":")
                 i = int(i)
@@ -942,23 +877,17 @@ class BotUI:
                 self.mut(ch, lambda d: engine.set_slot(d, lv, int(dlt)), "ячейки заклинаний")
                 await self.panel_res(chat_id, mid, self.db.character(ch["id"]))
             elif act == "rest":
-                self.db.set(f"rest:{uid}", [])
-                await self.panel_rest(chat_id, mid, ch, [])
+                await self.panel_rest(chat_id, mid, ch)
             elif act == "hd":
-                spend = self.db.get(f"rest:{uid}") or []
-                D = engine.derive(ch["data"])
-                h = next(h for h in D["hd"] if h["die"] == val)
-                if spend.count(val) >= h["left"]:
-                    note = "Кости этого типа кончились"
+                if not self.db.get(f"srest:{ch['id']}"):
+                    note = "Отдых объявляет мастер"
                 else:
-                    spend.append(val)
-                    self.db.set(f"rest:{uid}", spend)
-                await self.panel_rest(chat_id, mid, ch, spend)
+                    _, log_ = self.mut(ch, lambda d: engine.spend_hit_die(d, val), "короткий отдых: кость хитов")
+                    note = "; ".join(log_)
+                    await self.panel_rest(chat_id, mid, self.db.character(ch["id"]))
             elif act == "short":
-                spend = self.db.get(f"rest:{uid}") or []
-                self.db.delete(f"rest:{uid}")
-                _, log_ = self.mut(ch, lambda d: engine.short_rest(d, spend), "короткий отдых")
-                await self.edit_or_send(chat_id, mid, "☕ <b>Короткий отдых</b>\n" + "\n".join(E(x) for x in log_), kb([[btn("⬅️ Меню", "main")]]))
+                self.db.delete(f"srest:{ch['id']}")
+                await self.panel_main(chat_id, mid, self.db.character(ch["id"]))
             elif act == "long":
                 _, log_ = self.mut(ch, engine.long_rest, "долгий отдых")
                 await self.edit_or_send(chat_id, mid, "🛌 <b>Долгий отдых</b>\n" + "\n".join(E(x) for x in log_), kb([[btn("⬅️ Меню", "main")]]))
@@ -981,7 +910,8 @@ class BotUI:
                 await self.panel_cond(chat_id, mid, self.db.character(ch["id"]))
             elif act == "dropc":
                 self.mut(ch, engine.drop_conc, "концентрация прервана")
-                await self.panel_cond(chat_id, mid, self.db.character(ch["id"]))
+                note = "🧠 Концентрация прервана"
+                await self.panel_main(chat_id, mid, self.db.character(ch["id"]))
             elif act == "rme":
                 self.mut(ch, lambda d: d.update(effects=[e_ for e_ in d.get("effects", []) if e_["id"] != val]) or [], "эффект снят")
                 await self.panel_cond(chat_id, mid, self.db.character(ch["id"]))

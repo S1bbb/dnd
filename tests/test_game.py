@@ -289,9 +289,11 @@ def test_requests_visibility_cancel_and_physical(game):
     assert run(game.cancel_request(rid))
     run(game.handle(wq(1, f"q:{rid}")))
     assert "отменил" in answer(game)["e"]
-    run(game.ask_roll(1, [ch["id"]], "s:dex", ""))
+    run(game.ask_roll(1, [ch["id"]], "s:dex", "", dc=15))
     run(game.handle(msg(1, "12")))  # просто число в чат = результат d20 для запроса
     assert game.db.requests(1)[0]["status"] == "done"
+    last = game.db.rolls(1)[-1]["detail"]
+    assert last["dc"] == 15 and last["ok"] is (game.db.rolls(1)[-1]["total"] >= 15)
 
 
 def test_concurrent_edit_conflict_and_undo(game):
@@ -364,37 +366,35 @@ def test_end_to_end_campaign(game):
     assert len(cbt["list"]) == 3 and all(x["init"] is not None for x in cbt["list"])
     run(game.combat_next(g2["id"]))
     full = game.db.character(cid)["data"]["hp"]
-    # в бою игрок сам хиты не меняет — кнопка заблокирована
+    # игрок сам себе хиты не меняет — это делает мастер (и в бою, и вне его)
     run(game.handle(cb(1, "p:dmg")))
     assert game.bot.last("answerCallbackQuery")["show_alert"] and game.db.get("inp:1") is None
     assert game.db.character(cid)["data"]["hp"] == full
-    # урон наносит мастер (как кнопка 🗡 на сайте)
-    game.mutate(cid, lambda d: engine.damage(d, 6), "Мастер", "урон 6")
+    game.mutate(cid, lambda d: engine.damage(d, 6), "Мастер", "урон 6")  # кнопка 🗡 на сайте
     hp_after = game.db.character(cid)["data"]["hp"]
     assert hp_after == full - 6
-    # расход ресурсов: Второе дыхание — игрок заявляет, мастер подтверждает
+    # игрок тратит свой ресурс сам: Второе дыхание списывается сразу, бросок лечения уходит мастеру в ленту
     feats = game.ui.my_feats(game.db.character(cid))
     i = next(k for k, f in enumerate(feats) if f["n"] == "Второе дыхание")
     run(game.handle(cb(1, f"p:uf:{i}")))
-    assert game.db.character(cid)["data"]["used"].get("res:second_wind") is None  # пока не применено
-    pend = game.pending(g2["id"])
-    assert len(pend) == 1 and "Второе дыхание" in pend[0]["label"]
-    run(game.resolve(g2["id"], pend[0]["id"], True))
-    with pytest.raises(ValueError):
-        run(game.resolve(g2["id"], pend[0]["id"], True))  # повторное нажатие не применит дважды
     d = game.db.character(cid)["data"]
-    assert d["used"]["res:second_wind"] == 1 and d["hp"] > hp_after and game.pending(g2["id"]) == []
-    assert "подтвердил" in game.bot.last("sendMessage")["text"]
+    assert d["used"]["res:second_wind"] == 1 and d["hp"] == hp_after
+    roll = game.db.rolls(g2["id"])[-1]
+    assert roll["title"] == "Второе дыхание" and roll["detail"]["ap"]["k"] == "heal"
+    game.mutate(cid, lambda d: engine.heal(d, roll["detail"]["ap"]["n"]), "Мастер", "лечение")  # «✚ применить» в ленте
+    assert game.db.character(cid)["data"]["hp"] > hp_after
     run(game.combat_end(g2["id"]))
-    # отдых: короткий с костью хитов вернёт Второе дыхание
-    run(game.handle(cb(1, "p:rest")))
+    # отдых объявляет мастер; до этого игрок кости хитов тратить не может
+    run(game.handle(cb(1, "p:hd:d10")))
+    assert "hd:d10" not in game.db.character(cid)["data"]["used"]
+    run(game.party_rest(g2["id"], "short"))
     run(game.handle(cb(1, "p:hd:d10")))
     run(game.handle(cb(1, "p:short")))
     d = game.db.character(cid)["data"]
-    assert "res:second_wind" not in d["used"] and d["used"]["hd:d10"] == 1
+    assert "res:second_wind" not in d["used"] and d["used"]["hd:d10"] == 1 and game.db.get(f"srest:{cid}") is None
     # журнал: механика записалась сама; мастер правит запись и открывает игрокам
     auto = game.db.journal(g2["id"], cat="mech")
-    assert any("Начался бой" in e["title"] for e in auto) and any("отдых" in e["title"] for e in auto)
+    assert any("Начался бой" in e["title"] for e in auto) and any("отдых" in e["title"].lower() for e in auto)
     e = game.db.add_entry(g2["id"], title="Деревня Баровия", body="Туман", vis="gm")
     game.db.update_entry(e["id"], "Мастер", body="Туман и волки", vis="all")
     assert len(game.db.entry_revs(e["id"])) == 2 and game.journal_for_players(g2["id"])[0]["body"] == "Туман и волки"

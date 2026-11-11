@@ -945,6 +945,19 @@ def short_rest(ch: dict, spend: list[str]) -> list[str]:
     return log
 
 
+def spend_hit_die(ch: dict, die: str) -> list[str]:
+    """Короткий отдых: потратить одну кость хитов — лечит бросок + ТЕЛ (минимум 0)."""
+    D = derive(ch)
+    hd = next((h for h in D["hd"] if h["die"] == die), None)
+    if not hd or hd["left"] <= 0:
+        raise ValueError("Кости этого типа кончились")
+    used = ch.setdefault("used", {})
+    used[f"hd:{die}"] = int(used.get(f"hd:{die}", 0)) + 1
+    r = dice.roll(f"1{die}")
+    n = max(0, r.total + D["m"]["con"])
+    return [f"кость {die}: {r.total} {sg(D['m']['con'])} = +{n} хитов"] + heal(ch, n)
+
+
 def long_rest(ch: dict) -> list[str]:
     D = derive(ch)
     used = ch.setdefault("used", {})

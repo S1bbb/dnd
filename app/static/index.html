@@ -30,8 +30,7 @@
       </div>
       <div class="hint" id="lobby-how"></div>
     </div>
-    <div id="pending"></div>
-    <div id="fight-banner" class="fight hidden">⚔️ <b>Идёт бой.</b> Игроки сейчас только бросают и объявляют действия — хиты, состояния и ресурсы меняешь ты (🗡 ✚ у персонажа или во вкладке «Бой»). Их заклинания и умения придут сюда заявками.</div>
+    <div id="fight-banner" class="fight hidden">⚔️ <b>Идёт бой.</b> Игроки объявляют действия и бросают. Ты решаешь, кто попал, и применяешь урон — кнопкой «🗡 Нанести» прямо под броском в ленте. Подсказка, что делать сейчас, — во вкладке «⚔️ Бой».</div>
     <div id="start-here" class="card hidden">
       <h3>👋 С чего начать</h3>
       <ol class="steps">
@@ -49,10 +48,19 @@
 
   <section class="col center-col">
     <div class="tabs" id="tabs">
-      <button data-t="feed" class="on">🎲 Броски</button><button data-t="combat">⚔️ Бой</button><button data-t="map">🗺 Карта</button><button data-t="journal">📖 Журнал</button>
+      <button data-t="feed" class="on">🗣 Сцена</button><button data-t="combat">⚔️ Бой</button><button data-t="map">🗺 Карта</button><button data-t="journal">📖 Журнал</button>
     </div>
+    <div class="tab-hint" id="tab-hint"></div>
 
     <div class="tab" id="t-feed">
+      <details class="memo"><summary>📘 Словарик мастера (нажми)</summary>
+        <p><b>Проверка</b> — герой пытается что-то сделать: бросает d20 + бонус навыка. Если ≥ <b>СЛ</b> (сложности) — получилось.<br>
+        <b>Спасбросок</b> — герой пытается избежать беды (ловушка, яд, заклинание). Тоже d20 + бонус против СЛ.<br>
+        <b>КД</b> (класс доспеха) — насколько трудно попасть. Атака попала, если бросок ≥ КД цели.<br>
+        <b>Преимущество / помеха</b> — бросают два d20 и берут лучший / худший. Давай преимущество за хитрый план, помеху — за плохие условия.<br>
+        <b>Крит</b> — на d20 выпало 20: точно попал, кости урона удваиваются. <b>1</b> — промах.<br>
+        <b>Концентрация</b> — некоторые заклинания держатся, пока маг сосредоточен. Получил урон — спасбросок Телосложения, иначе заклинание спадает.<br>
+        <b>0 хитов</b> — герой без сознания и в свой ход бросает спасброски от смерти (бот сделает это сам).</p></details>
       <details class="memo"><summary>💡 Памятка: сложность проверок</summary>
         <p><b>СЛ</b>: 5 очень легко · 10 легко · 15 средне · 20 трудно · 25 очень трудно · 30 почти невозможно.
         Преимущество — два d20, берётся лучший; помеха — худший; вместе отменяют друг друга.
@@ -75,7 +83,10 @@
         <button class="ghost danger" id="cb-end">Закончить</button>
         <span class="grow"></span><b id="cb-round"></b>
       </div>
+      <div id="cb-guide" class="guide"></div>
       <div id="cb-list"></div>
+      <h3 class="mt">Последние броски <span class="hint">— урон применяй отсюда</span></h3>
+      <div id="cb-feed" class="feedbox"></div>
       <div class="card">
         <h3>Добавить противника</h3>
         <div class="row gap wrap"><select id="npc-tpl"></select><input id="npc-name" placeholder="Имя (необязательно)"><input id="npc-count" type="number" value="1" min="1" max="20" class="short" title="Сколько"><label class="sel-all"><input type="checkbox" id="npc-hidden"> скрыт</label></div>
@@ -124,20 +135,32 @@
 
   <section class="col tools-col">
     <div class="card">
-      <h3>🎯 Попросить бросок</h3>
-      <div class="hint" id="ask-target">У всех игроков</div>
-      <div class="seg" id="ask-kind">
-        <button data-k="k" class="on">Навык</button><button data-k="c">Проверка</button><button data-k="s">Спас</button><button data-k="i">Иниц.</button><button data-k="f">Формула</button>
+      <h3>🎯 Попросить проверку</h3>
+      <div class="lbl">1. Что пытаются сделать герои?</div>
+      <select id="ask-sit"></select>
+      <div id="ask-custom" class="hidden">
+        <div class="seg" id="ask-kind">
+          <button data-k="k" class="on">Навык</button><button data-k="c">Характ.</button><button data-k="s">Спас</button><button data-k="f">Формула</button>
+        </div>
+        <select id="ask-skill"></select>
+        <select id="ask-ab" class="hidden">
+          <option value="str">Сила</option><option value="dex">Ловкость</option><option value="con">Телосложение</option>
+          <option value="int">Интеллект</option><option value="wis">Мудрость</option><option value="cha">Харизма</option>
+        </select>
+        <input id="ask-formula" class="hidden" placeholder="например 2d6+3">
       </div>
-      <select id="ask-skill"></select>
-      <select id="ask-ab" class="hidden">
-        <option value="str">Сила</option><option value="dex">Ловкость</option><option value="con">Телосложение</option>
-        <option value="int">Интеллект</option><option value="wis">Мудрость</option><option value="cha">Харизма</option>
-      </select>
-      <input id="ask-formula" class="hidden" placeholder="например 2d6+3">
-      <input id="ask-title" placeholder="Подпись (необязательно)">
-      <select id="ask-vis"><option value="player">👁 Видит игрок и мастер</option><option value="gm">🤫 Тайно: только мастер</option><option value="all">📢 Результат всем игрокам</option></select>
-      <button class="primary" id="ask-go">Отправить запрос</button>
+      <div class="lbl">2. Насколько это сложно?</div>
+      <div class="seg" id="ask-dc"><button data-dc="10">Легко 10</button><button data-dc="15" class="on">Средне 15</button><button data-dc="20">Трудно 20</button><button data-dc="25">Очень 25</button><button data-dc="">Без СЛ</button></div>
+      <div class="lbl">3. Кто бросает? <span class="hint" id="ask-target">Все игроки</span></div>
+      <input id="ask-title" placeholder="Подпись для игроков (необязательно)">
+      <label class="sel-all"><input type="checkbox" id="ask-secret"> 🤫 тайно — игрок не увидит, получилось ли</label>
+      <button class="primary" id="ask-go">🎯 Попросить бросок</button>
+      <div class="hint">Игроку придёт карточка «Бросить». Итог появится в ленте с ✅ успех или ❌ провал.</div>
+    </div>
+    <div class="card">
+      <h3>🏕 Отдых партии</h3>
+      <div class="hint">Отдых объявляешь ты. ☕ <b>Короткий</b> — час передышки: вернутся умения «до короткого отдыха», игроки смогут подлечиться костями хитов. 🛌 <b>Долгий</b> — ночь сна: восстановится всё.</div>
+      <div class="row gap"><button id="rest-short">☕ Короткий</button><button id="rest-long">🛌 Долгий</button></div>
     </div>
     <div class="card">
       <h3>🎲 Бросок мастера</h3>

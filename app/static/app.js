@@ -124,26 +124,20 @@ $('#players').addEventListener('click', async (e) => {
 });
 $('#players').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.classList.contains('hp-in')) e.target.closest('.pc').querySelector('.dmg').click(); });
 
-/* ---------- заявки игроков в бою ---------- */
-function renderPending() {
-  const P = S.pending || [];
-  $('#pending').innerHTML = P.length ? `<div class="card pend"><h3>⏳ Игроки ждут твоего решения</h3>${P.map((p) => `<div class="pend-row" data-id="${p.id}">
-    <div class="grow"><b>${esc(p.who)}</b>: ${esc(p.label)}</div><button class="sm ok">✓ Применить</button><button class="ghost sm no">✕</button></div>`).join('')}
-    <div class="hint">«Применить» потратит ячейку или ресурс, бросит кости и пришлёт игроку результат.</div></div>` : '';
-}
-$('#pending').addEventListener('click', async (e) => {
-  const row = e.target.closest('.pend-row'); if (!row) return;
-  const ok = !!e.target.closest('.ok'); if (!ok && !e.target.closest('.no')) return;
-  row.querySelectorAll('button').forEach((b) => (b.disabled = true));
-  try { await api(G(`/pending/${row.dataset.id}`), { ok }); toast(ok ? '✓ Применено' : '✕ Отклонено'); } catch (err) { row.querySelectorAll('button').forEach((b) => (b.disabled = false)); }
-});
 $('#sel-all').addEventListener('change', (e) => { S.selected = e.target.checked ? new Set(S.chars.map((c) => c.id)) : new Set(); renderPlayers(); });
 function targets() { return S.selected.size ? [...S.selected] : S.chars.filter((c) => c.tg_id).map((c) => c.id); }
-function updateTargetHint() { const n = S.selected.size; $('#ask-target').textContent = n ? `Выбрано: ${n}` : 'У всех игроков (или отметь галочками)'; }
+function updateTargetHint() { const n = S.selected.size; $('#ask-target').textContent = n ? `выбранные: ${n}` : 'все игроки (или отметь «выбрать» у персонажей)'; }
 function sentToast(prefix, sent, asked) { const m = asked - sent; toast(`${prefix}: ${sent}` + (m > 0 ? ` (без игрока: ${m})` : '')); }
 
 /* ---------- вкладки ---------- */
+const TAB_HINT = {
+  feed: 'Исследование и разговоры: проси проверки справа, броски игроков появляются в ленте. Урон и лечение применяй кнопками под броском.',
+  combat: 'Драка: добавь противников, начни бой и иди по ходам — подсказка ниже скажет, что делать.',
+  map: 'Необязательно: карта местности для игроков с фишками и туманом.',
+  journal: 'Заметки мастера: сюжет, задания, итоги сессий. Механика (урон, отдых, бои) записывается сама.',
+};
 function tab(name) {
+  $('#tab-hint').textContent = TAB_HINT[name] || '';
   $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === name));
   $$('.tab').forEach((t) => t.classList.toggle('hidden', t.id !== 't-' + name));
   store('tab', name);
@@ -158,11 +152,47 @@ function rollHtml(r) {
   const d = r.detail || {};
   const t = new Date(r.ts * 1000).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
   const dmg = d.d ? `<div class="meta">урон <b class="dmgv">${d.d.t}</b> · ${esc(d.d.f)} → ${diceHtml(d.d)}</div>` : '';
+  const dc = d.dc ? ` <span class="${d.ok ? 'okv' : 'badv'}">${d.ok ? '✅ успех' : '❌ провал'} (СЛ ${d.dc})</span>` : '';
+  const ap = d.ap || (d.d ? { k: 'dmg', n: d.d.t } : null);
+  const apHtml = ap && !d.applied ? `<div class="ap" data-rid="${r.id}">${ap.k === 'heal'
+    ? `<button class="sm ap-go heal-b">✚ Вылечить ${ap.n}…</button>`
+    : `<button class="sm ap-go">🗡 Нанести ${ap.n} урона…</button>${d.d ? ' <span class="hint">попал, если ' + r.total + ' ≥ КД цели</span>' : ''}${ap.dc ? ` <span class="hint">цели бросают спас ${esc(ap.save || '')} СЛ ${ap.dc}${ap.half ? ', при успехе — половина' : ''}</span>` : ''}`}</div>` : '';
   return `<div class="roll ${d.c > 0 ? 'crit' : ''} ${d.c < 0 ? 'fumble' : ''} ${r.tg_id ? '' : 'gm'} ${r.hidden ? 'secret' : ''}">
     <div class="tot">${r.total}</div><div><span class="time">${t}</span> <span class="who">${esc(r.who)}</span>${r.title ? ` — <span class="ttl">${d.d ? '⚔️ ' : ''}${esc(r.title)}</span>` : ''}
-    ${d.c > 0 ? ' 💥' : d.c < 0 ? ' 💀' : ''}${r.hidden ? ' 🤫' : ''}${d.phys ? ' 🎲свои' : ''}${d.d && S.compact ? ` · урон <b class="dmgv">${d.d.t}</b>` : ''}
-    <div class="meta det">${esc(r.formula)} → ${diceHtml(d)}</div>${S.compact ? '' : dmg}</div></div>`;
+    ${d.c > 0 ? ' 💥' : d.c < 0 ? ' 💀' : ''}${r.hidden ? ' 🤫' : ''}${d.phys ? ' 🎲свои' : ''}${dc}${d.d && S.compact ? ` · урон <b class="dmgv">${d.d.t}</b>` : ''}
+    <div class="meta det">${esc(r.formula)} → ${diceHtml(d)}</div>${S.compact ? '' : dmg}${apHtml}</div></div>`;
 }
+function applyTargets(kind) {
+  const out = [];
+  const cb = S.combat && S.combat.on ? S.combat.list : [];
+  if (kind === 'dmg') for (const x of cb) if (x.kind === 'npc') out.push({ t: 'npc', id: x.id, n: x.name, ac: x.ac, hp: `${x.hp}/${x.mhp}` });
+  for (const c of S.chars) out.push({ t: 'pc', id: c.id, n: c.char.name, ac: c.d.ac.val, hp: `${c.char.hp}/${c.d.hp_max.val}` });
+  return out;
+}
+function openApply(box) {
+  const r = S.rolls.find((x) => x.id === +box.dataset.rid); if (!r) return;
+  const d = r.detail, ap = d.ap || { k: 'dmg', n: d.d.t };
+  const hitRoll = d.d ? r.total : null;
+  let tg = applyTargets(ap.k);
+  if (!r.tg_id && !r.char_id) tg = [...tg.filter((x) => x.t === 'pc'), ...tg.filter((x) => x.t === 'npc' && !r.title.startsWith(x.n + ':'))];  // бьёт монстр — сначала герои
+  if (ap.self) { const i = tg.findIndex((x) => x.t === 'pc' && x.id === ap.self); if (i > 0) tg.unshift(tg.splice(i, 1)[0]); }
+  box.innerHTML = `<div class="row gap wrap"><input type="number" class="short ap-n" value="${ap.n}"> ${ap.k === 'dmg' ? '<button class="ghost sm ap-half">½ половина</button>' : ''}
+    <span class="hint">${ap.k === 'heal' ? 'кого лечим?' : 'по кому?'}</span></div>
+    <div class="row gap wrap">${tg.map((x) => `<button class="sm ap-tg ${x.t}" data-t="${x.t}" data-id="${x.id}">${x.t === 'npc' ? '👹' : '🧙'} ${esc(x.n)} <span class="hint">${x.hp}${ap.k === 'dmg' ? ' · КД ' + x.ac + (hitRoll != null ? (hitRoll >= x.ac ? ' ✓' : ' ✗') : '') : ''}</span></button>`).join('') || '<span class="hint">Некого</span>'}
+    <button class="ghost sm ap-x">отмена</button></div>`;
+}
+document.addEventListener('click', async (e) => {
+  const box = e.target.closest('.ap'); if (!box) return;
+  if (e.target.closest('.ap-go')) return openApply(box);
+  if (e.target.closest('.ap-x')) return renderFeed(), renderCombat();
+  if (e.target.closest('.ap-half')) { const i = box.querySelector('.ap-n'); i.value = Math.floor(+i.value / 2); return; }
+  const b = e.target.closest('.ap-tg'); if (!b) return;
+  const r = S.rolls.find((x) => x.id === +box.dataset.rid); const ap = r.detail.ap || { k: 'dmg' };
+  const n = Math.abs(+box.querySelector('.ap-n').value || 0); if (!n) return toast('Сколько?');
+  if (b.dataset.t === 'pc') { const res = await api(`/api/char/${b.dataset.id}/op`, { op: ap.k === 'heal' ? 'heal' : 'dmg', n, type: ap.t || '' }); toast(`${ap.k === 'heal' ? '✚ +' : '🗡 −'}${n} · ${b.textContent.trim().split('  ')[0]}` + (res.log.length ? ' · ' + res.log.join('; ') : '')); }
+  else { await cbOp('npc', { eid: b.dataset.id, delta: ap.k === 'heal' ? n : -n }); toast(`🗡 −${n}`); }
+  r.detail.applied = true; renderFeed(); renderCombat();
+});
 function renderFeed() {
   $('#feed').classList.toggle('compact', S.compact);
   $('#feed').innerHTML = S.rolls.length ? S.rolls.slice().reverse().map(rollHtml).join('') : '<p class="hint">Тут будут появляться броски в реальном времени.</p>';
@@ -177,9 +207,9 @@ function renderRequests() {
   const VIS = { gm: '🤫', all: '📢', player: '' };
   const html = Object.values(groups).slice(0, 8).map((qs) => {
     const done = qs.filter((q) => q.status === 'done').length;
-    return `<div class="req"><div class="row gap"><b class="grow">${esc(qs[0].title)} ${VIS[qs[0].vis] || ''}</b><span class="hint">${done}/${qs.length}</span></div>
+    return `<div class="req"><div class="row gap"><b class="grow">${esc(qs[0].title)}${qs[0].dc ? ' · СЛ ' + qs[0].dc : ''} ${VIS[qs[0].vis] || ''}</b><span class="hint">${done}/${qs.length}</span></div>
       ${qs.map((q) => { const ch = charById(q.char_id); return `<div class="req-row"><span class="grow">${esc(ch ? ch.char.name : '?')}</span>
-        ${q.status === 'done' ? `<b>${q.total ?? '✓'}</b>` : q.status === 'cancelled' ? '<span class="hint">отменён</span>' : q.status === 'failed' ? '<span class="hint">не доставлен</span>' : `<span class="hint">⏳ ждём</span> <button class="ghost sm" data-cancel="${q.id}">✕</button>`}</div>`; }).join('')}</div>`;
+        ${q.status === 'done' ? `<b>${q.total ?? '✓'}</b>${q.dc && q.total != null ? (q.total >= q.dc ? ' ✅' : ' ❌') : ''}` : q.status === 'cancelled' ? '<span class="hint">отменён</span>' : q.status === 'failed' ? '<span class="hint">не доставлен</span>' : `<span class="hint">⏳ ждём</span> <button class="ghost sm" data-cancel="${q.id}">✕</button>`}</div>`; }).join('')}</div>`;
   }).join('');
   $('#requests').innerHTML = html || '<p class="hint">Запросов пока нет.</p>';
 }
@@ -187,19 +217,47 @@ $('#requests').addEventListener('click', async (e) => { const b = e.target.close
 $('#req-toggle').addEventListener('click', () => { const el = $('#requests'); el.classList.toggle('hidden'); $('#req-toggle').textContent = el.classList.contains('hidden') ? 'развернуть' : 'свернуть'; });
 
 /* ---------- запрос броска ---------- */
-let askKind = 'k';
+const SITUATIONS = [
+  ['👀 Заметить засаду, ловушку, тайник', 'k:3'], ['🔍 Обыскать, найти улику, разгадать механизм', 'k:1'],
+  ['🤫 Подкрасться, спрятаться', 'k:15'], ['🧗 Залезть, прыгнуть, выбить дверь', 'k:2'], ['🤸 Удержать равновесие, вывернуться', 'k:0'],
+  ['🗝 Вскрыть замок, незаметно стащить', 'k:8'], ['💬 Убедить, договориться', 'k:16'], ['🎭 Соврать, обмануть', 'k:11'],
+  ['😠 Запугать', 'k:6'], ['🧐 Понять, врёт ли собеседник', 'k:13'], ['🩹 Помочь раненому', 'k:10'], ['🐾 Выследить, найти дорогу', 'k:4'],
+  ['🐴 Успокоить животное', 'k:17'], ['🎵 Выступить перед публикой', 'k:5'],
+  ['📚 Вспомнить про магию и магических тварей', 'k:9'], ['📜 Вспомнить историю, королевства, легенды', 'k:7'],
+  ['🌿 Вспомнить про природу, зверей, растения', 'k:12'], ['⛪ Вспомнить про богов, нежить, культы', 'k:14'],
+  ['💨 Увернуться от ловушки, взрыва (спасбросок ЛОВ)', 's:dex'], ['🧪 Устоять против яда, болезни (спасбросок ТЕЛ)', 's:con'],
+  ['🧠 Устоять против чар, страха (спасбросок МДР)', 's:wis'], ['💪 Устоять, когда толкают или держат (спасбросок СИЛ)', 's:str'],
+  ['⚡ Инициатива — кто ходит первым в бою', 'i:0'], ['✍️ Другое — выбрать вручную…', ''],
+];
+let askKind = 'k', askDc = '15';
+$('#ask-sit').innerHTML = SITUATIONS.map(([t, k], i) => `<option value="${i}">${t}</option>`).join('');
+$('#ask-sit').addEventListener('change', () => $('#ask-custom').classList.toggle('hidden', SITUATIONS[+$('#ask-sit').value][1] !== ''));
 $('#ask-kind').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return; askKind = b.dataset.k;
   $$('#ask-kind button').forEach((x) => x.classList.toggle('on', x === b));
   $('#ask-skill').classList.toggle('hidden', askKind !== 'k'); $('#ask-ab').classList.toggle('hidden', !['c', 's'].includes(askKind)); $('#ask-formula').classList.toggle('hidden', askKind !== 'f');
 });
+$('#ask-dc').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; askDc = b.dataset.dc; $$('#ask-dc button').forEach((x) => x.classList.toggle('on', x === b)); });
 $('#ask-go').addEventListener('click', async () => {
   const ids = targets(); if (!ids.length) return toast('Ни у кого ещё нет игрока');
-  const v = { k: $('#ask-skill').value, c: $('#ask-ab').value, s: $('#ask-ab').value, i: '0', f: $('#ask-formula').value.trim() }[askKind];
-  if (askKind === 'f' && !v) return toast('Впиши формулу');
-  const r = await api(G('/ask'), { chars: ids, kind: `${askKind}:${v}`, title: $('#ask-title').value.trim(), vis: $('#ask-vis').value });
-  sentToast('📨 Запрос отправлен', r.sent.length, ids.length); $('#ask-title').value = '';
+  let kind = SITUATIONS[+$('#ask-sit').value][1];
+  if (!kind) {
+    const v = { k: $('#ask-skill').value, c: $('#ask-ab').value, s: $('#ask-ab').value, f: $('#ask-formula').value.trim() }[askKind];
+    if (askKind === 'f' && !v) return toast('Впиши формулу');
+    kind = `${askKind}:${v}`;
+  }
+  const r = await api(G('/ask'), { chars: ids, kind, title: $('#ask-title').value.trim(), vis: $('#ask-secret').checked ? 'gm' : 'player', dc: kind.startsWith('i:') ? '' : askDc });
+  sentToast('📨 Попросил бросить', r.sent.length, ids.length); $('#ask-title').value = '';
 });
+async function partyRest(kind) {
+  const ids = S.selected.size ? [...S.selected] : [];
+  const who = ids.length ? `выбранных (${ids.length})` : 'всю партию';
+  if (!confirm(`${kind === 'long' ? '🛌 Долгий' : '☕ Короткий'} отдых для: ${who}?`)) return;
+  const r = await api(G('/rest'), { kind, chars: ids });
+  toast(`${kind === 'long' ? '🛌' : '☕'} Отдохнули: ${r.rested.join(', ') || 'никто'}`);
+}
+$('#rest-short').addEventListener('click', () => partyRest('short'));
+$('#rest-long').addEventListener('click', () => partyRest('long'));
 
 /* ---------- бросок мастера и сообщения ---------- */
 let gmAdv = 0;
@@ -219,6 +277,19 @@ function renderCombat() {
   const cb = S.combat || { on: false, list: [], round: 0, turn: -1 };
   $('#cb-round').textContent = cb.on ? `Раунд ${cb.round}` : 'Бой не идёт';
   $('#cb-start').classList.toggle('hidden', cb.on);
+  $('#cb-next').classList.toggle('hidden', !cb.on); $('#cb-end').classList.toggle('hidden', !cb.on); $('#cb-ask').classList.toggle('hidden', !cb.on);
+  const cur = cb.on ? cb.list[cb.turn] : null;
+  const npcs = cb.list.filter((x) => x.kind === 'npc').length;
+  let g;
+  if (!cb.on) g = `<b>Как начать бой:</b><ol><li>Добавь противников в блоке ниже (${npcs ? '✓ добавлено: ' + npcs : 'шаблон, например «Гоблин», и сколько'}).</li>
+    <li>Нажми <b>⚔️ Начать бой</b> — игрокам придёт запрос инициативы, очередь выстроится сама.</li><li>Дальше просто жми <b>Следующий ход</b> и следуй подсказкам здесь.</li></ol>`;
+  else if (!cur) g = '<b>Бой начался.</b> Ждём бросков инициативы от игроков (у кого «?» — ещё не бросил; можно вписать вручную). Затем жми <b>Следующий ход ▶</b>.';
+  else if (cur.kind === 'npc') g = `<b>Ходит 👹 ${esc(cur.name)}</b>. Опиши, что он делает, и брось атаку: ${(cur.atk || []).map((a, j) => `<button class="sm g-atk" data-id="${cur.id}" data-i="${j}">⚔️ ${esc(a[0])}</button>`).join(' ') || '(атак нет — впиши урон вручную у цели)'}
+    <br><span class="hint">Бросок ≥ КД героя — попал. Под броском появится «🗡 Нанести урон» — выбери, по кому. Затем <b>Следующий ход ▶</b>.</span>`;
+  else g = `<b>Ходит 🧙 ${esc(cur.name)}</b>. Спроси игрока: «Что делаешь?». Он бросает в боте — бросок появится ниже.
+    <br><span class="hint">Атака попала, если бросок ≥ КД цели (у гоблина КД 15). Нажми «🗡 Нанести» под броском и выбери противника. Затем <b>Следующий ход ▶</b>.</span>`;
+  $('#cb-guide').innerHTML = g;
+  $('#cb-feed').innerHTML = S.rolls.slice(-6).reverse().map(rollHtml).join('') || '<p class="hint">Пока бросков нет.</p>';
   $('#cb-list').innerHTML = cb.list.length ? cb.list.map((x, i) => {
     const ch = x.cid ? charById(x.cid) : null;
     const hp = ch ? ch.char.hp : x.hp, mx = ch ? ch.d.hp_max.val : x.mhp, ac = ch ? ch.d.ac.val : x.ac;
@@ -237,6 +308,7 @@ function renderCombat() {
 }
 async function cbOp(op, extra = {}) { const r = await api(G('/combat'), { op, ...extra }); if (r.combat) { S.combat = r.combat; renderCombat(); } return r; }
 $('#cb-start').addEventListener('click', () => cbOp('start'));
+$('#cb-guide').addEventListener('click', async (e) => { const b = e.target.closest('.g-atk'); if (!b) return; const r = await cbOp('npc_roll', { eid: b.dataset.id, i: +b.dataset.i }); toast(`🎲 ${r.total}` + (r.detail.d ? ` · урон ${r.detail.d.t}` : '')); });
 $('#cb-next').addEventListener('click', async () => { const r = await cbOp('next'); const c = r.combat.list[r.combat.turn]; if (c) toast('Ход: ' + c.name); });
 $('#cb-ask').addEventListener('click', () => cbOp('ask_init').then(() => toast('⚔️ Инициатива запрошена')));
 $('#cb-end').addEventListener('click', () => { if (confirm('Закончить бой? Противники уйдут из списка.')) cbOp('end'); });
@@ -560,7 +632,7 @@ function connect() {
   ws.onclose = () => { setConn(false); S.ws = null; setTimeout(connect, 1500); };
   ws.onmessage = (m) => {
     const ev = JSON.parse(m.data);
-    if (ev.type === 'roll') { S.rolls.push(ev.roll); if (S.rolls.length > 300) S.rolls.shift(); renderFeed(); renderPlayers(); }
+    if (ev.type === 'roll') { S.rolls.push(ev.roll); if (S.rolls.length > 300) S.rolls.shift(); renderFeed(); renderPlayers(); renderCombat(); }
     else if (ev.type === 'chars') {
       const had = new Set(S.chars.filter((c) => c.player).map((c) => c.id)); S.chars = ev.chars; renderPlayers(); renderCombat(); renderRequests();
       const joined = S.chars.find((c) => c.player && !had.has(c.id) && c.id !== S.createdId); if (joined && S.loaded && !S.justCreated) toast(`🎮 ${joined.player.first_name} забрал(а) «${joined.char.name}»`);
@@ -569,7 +641,6 @@ function connect() {
     }
     else if (ev.type === 'drafts') { S.drafts = ev.drafts; renderDrafts(); }
     else if (ev.type === 'created') { toast(`🆕 ${ev.player} создал(а) героя «${ev.name}»`); S.justCreated = true; }
-    else if (ev.type === 'pending') { S.pending = ev.pending; renderPending(); if (ev.new) toast(`⏳ ${ev.new.who}: ${ev.new.label}`); }
     else if (ev.type === 'requests') { S.requests = ev.requests; renderRequests(); }
     else if (ev.type === 'combat') { S.combat = ev.combat; renderCombat(); renderPlayers(); drawMap(); }
     else if (ev.type === 'scene') { if (ev.scene && (!S.scene || S.scene.id === ev.scene.id || !MAP.drag)) { if (!MAP.drag && !MAP.painting) { S.scene = ev.scene; renderScenes(); drawMap(); } } else if (!ev.scene) { S.scene = null; renderScenes(); drawMap(); } loadScenes(); }
@@ -583,10 +654,10 @@ async function refresh() {
   const st = await api(G('/state'), null, 'GET');
   Object.assign(S, { chars: st.chars, rolls: st.rolls, requests: st.requests, skills: st.skills, lobby_link: st.lobby_link, bot: st.bot,
     drafts: st.drafts, combat: st.combat, monsters: st.monsters, effects: st.effects, conditions: st.conditions, adj: st.adj_fields,
-    games: st.games, session: st.session, pending: st.pending || [], loaded: true });
+    games: st.games, session: st.session, loaded: true });
   if (!$('#ask-skill').options.length) $('#ask-skill').innerHTML = st.skills.map((s, i) => `<option value="${i}">${esc(s)}</option>`).join('');
   $('#npc-tpl').innerHTML = '<option value="">— свой —</option>' + st.monsters.map((m) => `<option>${esc(m)}</option>`).join('');
-  renderGames(); renderLobby(); renderDrafts(); renderPending(); renderPlayers(); renderFeed(); renderRequests(); renderCombat(); loadScenes();
+  renderGames(); renderLobby(); renderDrafts(); renderPlayers(); renderFeed(); renderRequests(); renderCombat(); loadScenes();
   if ($('#editor').open) renderEditor();
 }
 (async () => { await loadGames(); tab(load('tab', 'feed')); connect(); })();

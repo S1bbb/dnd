@@ -318,7 +318,8 @@ def make_app(game: Game, password: str, secret: str, demo_mode: bool = False) ->
         elif k not in ("c", "s", "k", "i"):
             raise ValueError("bad kind")
         vis = d.get("vis") if d.get("vis") in ("player", "gm", "all") else "player"
-        sent = await game.ask_roll(gid, [int(i) for i in ids], kind, str(d.get("title", ""))[:60], vis)
+        dc = int(d["dc"]) if str(d.get("dc", "")).isdigit() else None
+        sent = await game.ask_roll(gid, [int(i) for i in ids], kind, str(d.get("title", ""))[:60], vis, dc)
         return J({"sent": sent})
 
     async def cancel_request(req):
@@ -379,10 +380,11 @@ def make_app(game: Game, password: str, secret: str, demo_mode: bool = False) ->
             raise ValueError("неизвестная операция боя")
         return J({"combat": cb})
 
-    async def resolve(req):
+    async def rest(req):
         gid = gid_of(req)
         d = await body(req)
-        return J({"result": await game.resolve(gid, req.match_info["pid"], bool(d.get("ok")))})
+        kind = "long" if d.get("kind") == "long" else "short"
+        return J({"rested": await game.party_rest(gid, kind, [int(i) for i in d.get("chars") or []] or None)})
 
     # ---------- журнал ----------
     async def journal(req):
@@ -574,7 +576,7 @@ def make_app(game: Game, password: str, secret: str, demo_mode: bool = False) ->
     r.add_post("/api/g/{gid}/message", message)
     r.add_post("/api/g/{gid}/clear", clear)
     r.add_post("/api/g/{gid}/combat", combat)
-    r.add_post("/api/g/{gid}/pending/{pid}", resolve)
+    r.add_post("/api/g/{gid}/rest", rest)
     r.add_get("/api/g/{gid}/journal", journal)
     r.add_post("/api/g/{gid}/journal", add_entry)
     r.add_post("/api/g/{gid}/session", new_session)
