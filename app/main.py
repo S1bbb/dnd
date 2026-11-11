@@ -60,7 +60,7 @@ async def main() -> None:
         from .demo_data import seed
         await seed(game)
 
-    app = make_app(game, password, secret)
+    app = make_app(game, password, secret, demo)
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", "8080"))

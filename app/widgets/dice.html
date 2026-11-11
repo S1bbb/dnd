@@ -5,6 +5,7 @@ body{margin:0;padding:10px 12px max(10px,env(safe-area-inset-bottom)) 24px;font-
 .g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
 button{border:0;border-radius:10px;padding:9px 0;font:600 14px system-ui,sans-serif;background:var(--tg-theme-secondary-bg-color);color:var(--tg-theme-text-color)}
 button:active{transform:scale(.95)}
+.g button:last-child{grid-column:span 2}
 .on{background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}
 .p{display:flex;align-items:center;gap:6px;min-height:34px}
 .f{flex:1;font:600 16px ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -30,17 +31,16 @@ button:active{transform:scale(.95)}
 <div class="l" id="l"></div>
 <script>
 const W=window.TelegramWidget,$=i=>document.getElementById(i),S=[4,6,8,10,12,20,100],M=['Обычно','Преим.','Помеха'];
-let pool={},mod=0,mode=0,hid=0,busy=0,hist=[];
+let pool={},mod=0,mode=0,busy=0,hist=[];
 try{hist=JSON.parse(localStorage.getItem('h'))||[]}catch(e){}
 const cd=()=>{try{return JSON.parse(W.chatData)||{}}catch(e){return{}}};
 function fx(){let s=S.filter(n=>pool[n]).map(n=>pool[n]+'d'+n).join('+');if(mod)s+=(mod>0?'+':'')+mod;return s}
 function draw(){
 $('f').textContent=fx()||'выбери кубики';
-$('g').replaceChildren(...S.map(n=>{const b=document.createElement('button');b.textContent=(pool[n]?pool[n]+'×':'')+'d'+n;if(pool[n])b.className='on';b.onclick=()=>{pool[n]=(pool[n]||0)+1;if(n!=20)mode=0;draw()};return b}),hb());
+$('g').replaceChildren(...S.map(n=>{const b=document.createElement('button');b.textContent=(pool[n]?pool[n]+'×':'')+'d'+n;if(pool[n])b.className='on';b.onclick=()=>{pool[n]=(pool[n]||0)+1;if(n!=20)mode=0;draw()};return b}));
 $('md').replaceChildren(...M.map((m,i)=>{const b=document.createElement('button');b.textContent=m;if(mode==i)b.className='on';b.onclick=()=>{mode=i;if(i&&!pool[20])pool[20]=1;draw()};return b}));
 $('l').textContent=hist.length?'Недавно: '+hist.join(' · '):'';
 $('who').textContent=cd().n||''}
-function hb(){const b=document.createElement('button');b.textContent=hid?'🙈 Тайно':'👁 Всем';if(hid)b.className='on';b.onclick=()=>{hid^=1;draw()};return b}
 $('mm').onclick=()=>{mod--;draw()};$('mp').onclick=()=>{mod++;draw()};$('cl').onclick=()=>{pool={};mod=0;mode=0;draw()};
 function show(a){
 const t=$('t');t.className='t'+(a.c>0?' c':a.c<0?' x':'');t.textContent=a.t;
@@ -51,7 +51,7 @@ W.HapticFeedback&&W.HapticFeedback.notificationOccurred(a.c<0?'error':'success')
 $('go').onclick=()=>{
 const f=fx();if(!f||busy)return;if(!W){$('d').textContent='Открой в Telegram';return}
 busy=1;$('t').className='t spin';$('t').textContent='🎲';$('d').textContent='';
-W.request('r'+'nad'[mode]+(hid?'h':'v')+':'+f).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(a&&a.e){$('t').className='t';$('t').textContent='?';$('d').textContent=a.e}else if(a)show(a)},e=>{busy=0;$('t').className='t';$('t').textContent='!';$('d').textContent=e.code=='NOT_ALLOWED'?'Бросать можно в чате с ботом':e.code=='RATE_LIMITED'?'Слишком быстро, подожди':'Не вышло: '+e.code})};
+W.request('r'+'nad'[mode]+'v'+':'+f).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(a&&a.e){$('t').className='t';$('t').textContent='?';$('d').textContent=a.e}else if(a)show(a)},e=>{busy=0;$('t').className='t';$('t').textContent='!';$('d').textContent=e.code=='NOT_ALLOWED'?'Бросать можно в чате с ботом':e.code=='RATE_LIMITED'?'Слишком быстро, подожди':'Не вышло: '+e.code})};
 W&&W.onEvent('chatDataChanged',draw);
 pool[20]=1;draw();W&&W.ready&&W.ready();
 </script>

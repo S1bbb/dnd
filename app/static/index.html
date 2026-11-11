@@ -12,22 +12,21 @@
   <div class="brand">🐉 <b>Ширма мастера</b></div>
   <div class="hdr-info">
     <span id="conn" class="pill off">нет связи</span>
-    <button id="invite-btn" class="ghost" title="Скопировать ссылку для игроков">🔗 Приглашение</button>
-    <button id="group-btn" class="ghost">💬 Группа</button>
+    <button id="invite-btn" class="ghost" title="Игрок по этой ссылке заведёт персонажа сам">🔗 Общая ссылка</button>
     <a href="/logout" class="ghost btn">Выйти</a>
   </div>
 </header>
 
 <main>
   <section class="col players-col">
-    <div class="col-h"><h2>Партия</h2><label class="sel-all"><input type="checkbox" id="sel-all"> все</label></div>
+    <div class="col-h"><h2>Партия</h2><div class="row gap"><label class="sel-all"><input type="checkbox" id="sel-all"> все</label><button class="sm" id="new-char">＋ Персонаж</button></div></div>
     <div id="players"></div>
-    <p id="no-players" class="hint hidden">Пока никого. Отправь друзьям ссылку-приглашение (кнопка 🔗 сверху) — они откроют бота и появятся здесь.</p>
+    <p id="no-players" class="hint hidden">Пока пусто. Нажми «＋ Персонаж», заполни лист и отправь игроку его личную ссылку — персонаж появится у него в Telegram.</p>
   </section>
 
   <section class="col feed-col">
     <div class="col-h"><h2>Броски</h2>
-      <div class="row gap"><label class="hint"><input type="checkbox" id="only-hidden"> только тайные</label><button class="ghost sm" id="clear">Очистить</button></div>
+      <button class="ghost sm" id="clear">Очистить</button>
     </div>
     <div id="feed"></div>
   </section>
@@ -46,7 +45,6 @@
       </select>
       <input id="ask-formula" class="hidden" placeholder="например 2d6+3">
       <input id="ask-title" placeholder="Подпись (необязательно)">
-      <label class="hint"><input type="checkbox" id="ask-hidden"> результат видит только мастер</label>
       <button class="primary" id="ask-go">Отправить запрос в Telegram</button>
     </div>
 
@@ -55,7 +53,6 @@
       <div class="dice-row" id="gm-dice"></div>
       <div class="row gap"><input id="gm-formula" placeholder="1d20+5" value="1d20"><input id="gm-title" placeholder="Что бросаем"></div>
       <div class="seg" id="gm-adv"><button data-a="0" class="on">Обычно</button><button data-a="1">Преимущ.</button><button data-a="-1">Помеха</button></div>
-      <label class="hint"><input type="checkbox" id="gm-public"> показать игрокам в группе</label>
       <button class="primary" id="gm-go">Бросить</button>
       <div id="gm-result" class="gm-result"></div>
     </div>
@@ -79,23 +76,41 @@
 
 <dialog id="editor">
   <form method="dialog" id="ed-form">
-    <h3>Персонаж</h3>
+    <div class="row gap"><h3 class="grow" id="ed-title">Персонаж</h3><button value="cancel" class="ghost sm" formnovalidate>✕</button></div>
+    <div id="ed-link" class="linkbox hidden"></div>
     <div class="grid2">
-      <label>Имя<input name="name"></label>
-      <label>Класс<input name="cls"></label>
-      <label>Уровень<input name="lvl" type="number" min="1" max="20"></label>
-      <label>КД<input name="ac" type="number" min="0" max="40"></label>
-      <label>Хиты<input name="hp" type="number"></label>
-      <label>Макс. хиты<input name="mhp" type="number" min="1"></label>
+      <label>Имя<input name="name" required></label>
+      <label>Класс<input name="cls" placeholder="Воин"></label>
+      <label>Раса<input name="race" placeholder="Горный дварф"></label>
+      <label>Предыстория<input name="bg" placeholder="Солдат"></label>
+      <label>Мировоззрение<input name="al" placeholder="Законно-добрый"></label>
+      <label>Уровень<input name="lvl" type="number" min="1" max="20" value="1"></label>
+    </div>
+    <div class="grid4">
+      <label>Хиты<input name="hp" type="number" value="10"></label>
+      <label>Макс. хиты<input name="mhp" type="number" min="1" value="10"></label>
+      <label>КД<input name="ac" type="number" min="0" max="40" value="10"></label>
+      <label>Скорость, фт<input name="spd" type="number" min="0" max="200" value="30"></label>
     </div>
     <h4>Характеристики и спасброски</h4>
     <div class="stats-ed" id="ed-stats"></div>
     <h4>Владение навыками</h4>
     <div class="skills-ed" id="ed-skills"></div>
-    <div class="row gap end">
-      <button type="button" class="danger ghost" id="ed-del">Удалить игрока</button>
+    <h4>Атаки и заклинания с броском <span class="hint">— в боте будут кнопкой: попадание + урон</span></h4>
+    <div id="ed-atk"></div>
+    <button type="button" class="ghost sm" id="ed-atk-add">＋ Атака</button>
+    <h4>Умения и особенности</h4>
+    <textarea name="feat" rows="3" placeholder="Второе дыхание, ярость, тёмное зрение…"></textarea>
+    <h4>Заклинания</h4>
+    <textarea name="spells" rows="3" placeholder="Заговоры: … / 1 круг (ячеек 3): …"></textarea>
+    <h4>Снаряжение и деньги</h4>
+    <textarea name="inv" rows="3" placeholder="Кольчуга, щит, верёвка 50 фт… 15 зм"></textarea>
+    <h4>Заметки и история</h4>
+    <textarea name="notes" rows="2" placeholder="Внешность, цели, связи…"></textarea>
+    <div class="row gap end ed-foot">
+      <button type="button" class="danger ghost" id="ed-del">Удалить</button>
       <span class="grow"></span>
-      <button value="cancel" class="ghost">Отмена</button>
+      <button value="cancel" class="ghost" formnovalidate>Отмена</button>
       <button value="save" class="primary" id="ed-save">Сохранить</button>
     </div>
   </form>

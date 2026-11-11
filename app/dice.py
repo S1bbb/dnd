@@ -122,9 +122,15 @@ def parse(formula: str) -> tuple[list[Group], int]:
     return groups, bonus
 
 
-def roll(formula: str, adv: int = 0) -> Roll:
-    """adv: 1 — преимущество, -1 — помеха (для первого 1d20 в формуле)."""
+def roll(formula: str, adv: int = 0, crit: bool = False) -> Roll:
+    """adv: 1 — преимущество, -1 — помеха (для первого 1d20 в формуле).
+    crit: критический урон — количество кубиков удваивается."""
     groups, bonus = parse(formula)
+    if crit:
+        for g in groups:
+            g.count *= 2
+            if g.keep:
+                g.keep_n *= 2
     if adv:
         for g in groups:
             if g.sides == 20 and g.count == 1 and not g.keep:

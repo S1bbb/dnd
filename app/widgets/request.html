@@ -19,7 +19,6 @@ const c=()=>{try{return JSON.parse(W.chatData)||{}}catch(e){return{}}};
 function res(a){return '<div class="t '+(a.c>0?'c':a.c<0?'x':'')+'">'+a.t+'</div><div class="m">'+a.f+' → ['+a.r.flat().map(Math.abs).join(', ')+']'+(a.c>0?' 💥 КРИТ':a.c<0?' 💀 провал':'')+'</div>'}
 function draw(){
 const d=c();$('tt').textContent=d.t||'Бросок';
-$('h').textContent=d.h?'🧙 Мастер просит бросок (результат увидит только он)':'🧙 Мастер просит бросок';
 if(d.x){$('b').innerHTML=res(d.x);return}
 if(busy)return;
 const b=document.createElement('button');b.textContent='🎲 Бросить';b.onclick=go;$('b').replaceChildren(b)}

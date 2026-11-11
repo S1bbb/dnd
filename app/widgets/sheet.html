@@ -1,11 +1,14 @@
 <style>
 body{margin:0;padding:10px 12px max(10px,env(safe-area-inset-bottom)) 24px;font-family:system-ui,sans-serif}
-.h{display:flex;align-items:center;gap:10px}
+.h{display:flex;align-items:center;gap:6px}
 .n{flex:1;min-width:0}
 .n b{display:block;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .m{color:var(--tg-theme-hint-color);font-size:12px}
-.ac{width:42px;height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px 10px 21px 21px;background:var(--tg-theme-secondary-bg-color);font:800 17px system-ui,sans-serif;line-height:1}
+.n .m{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac{width:42px;height:46px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px 10px 21px 21px;background:var(--tg-theme-secondary-bg-color);font:800 17px system-ui,sans-serif;line-height:1}
 .ac small{font:600 9px system-ui,sans-serif;color:var(--tg-theme-hint-color)}
+.ib{flex:none;width:42px;height:46px;padding:0;font-size:13px;line-height:1.1}
+.ib small{display:block;font-size:10px;color:var(--tg-theme-hint-color)}
 .hp{margin:8px 0 2px;height:8px;border-radius:4px;background:var(--tg-theme-secondary-bg-color);overflow:hidden}
 .hp div{height:100%;border-radius:4px;transition:width .5s}
 .g{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
@@ -14,44 +17,51 @@ button:active{transform:scale(.95)}
 .st b{display:block;font-size:18px}
 .st span{color:var(--tg-theme-hint-color);font-size:11px}
 .on{background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}
-.on span{color:var(--tg-theme-button-text-color)}
 .r{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
 .r button{padding:7px 0;font-size:12px}
 .g.sk{grid-template-columns:1fr 1fr;gap:4px}
 .sk button{display:flex;justify-content:space-between;gap:4px;padding:5px 7px;font:500 12px system-ui,sans-serif;text-align:left}
+.g.at{grid-template-columns:1fr}
+.at button{display:flex;align-items:center;gap:8px;padding:8px 10px;text-align:left}
+.at button span{flex:1}
+.at i{font:500 12px ui-monospace,monospace;font-style:normal;color:var(--tg-theme-hint-color)}
 .pr{color:var(--tg-theme-accent-text-color)}
 .o{margin-bottom:8px;padding:6px 10px;border-radius:10px;background:var(--tg-theme-secondary-bg-color);font-size:14px;min-height:20px}
 .o b{font-size:22px}
 .c{color:#2fb35a}.x{color:var(--tg-theme-destructive-text-color)}
 </style>
-<div class="h"><div class="n"><b id="nm">Персонаж</b><span class="m" id="cl"></span></div><div class="ac"><span id="ac">10</span><small>КД</small></div></div>
+<div class="h"><div class="n"><b id="nm">Персонаж</b><span class="m" id="cl"></span></div><button class="ib" id="in"></button><button class="ib" id="if">📜<small>инфо</small></button><div class="ac"><span id="ac">10</span><small>КД</small></div></div>
 <div class="hp"><div id="hb"></div></div><div class="m" id="ht" style="margin-bottom:6px"></div>
-<div class="o" id="o">Нажми на характеристику или навык — бросок</div>
+<div class="o" id="o">Нажми на характеристику, навык или атаку — бросок</div>
 <div class="r" id="md"></div>
 <div class="g" id="g"></div>
 <script>
 const W=window.TelegramWidget,$=i=>document.getElementById(i),A=['str','dex','con','int','wis','cha'],AN=['СИЛ','ЛОВ','ТЕЛ','ИНТ','МДР','ХАР'],
 K='Акробатика:1|Анализ:3|Атлетика:0|Внимательность:4|Выживание:4|Выступление:5|Запугивание:5|История:3|Ловкость рук:1|Магия:3|Медицина:4|Обман:5|Природа:3|Проницательность:4|Религия:3|Скрытность:1|Убеждение:5|Уход за животными:4'.split('|').map(s=>s.split(':'));
 let mode=0,busy=0;
-const c=()=>{try{return JSON.parse(W.chatData)||{}}catch(e){return{}}},md=n=>Math.floor((n-10)/2),sg=n=>(n<0?'':'+')+n;
-function bt(h,f,cl){const b=document.createElement('button');b.innerHTML=h;b.onclick=f;if(cl)b.className=cl;return b}
+const c=()=>{try{return JSON.parse(W.chatData)||{}}catch(e){return{}}},md=n=>Math.floor((n-10)/2),sg=n=>(n<0?'':'+')+n,
+E=s=>String(s).replace(/[&<>]/g,x=>'&#'+x.charCodeAt(0)+';'),
+cl=a=>a.c>0?'c':a.c<0?'x':'',rs=a=>' <span class="m">'+E(a.f)+' → ['+a.r.flat().map(Math.abs).join(', ')+']</span>';
+function bt(h,f,k){const b=document.createElement('button');b.innerHTML=h;b.onclick=f;if(k)b.className=k;return b}
 function draw(){
-const d=c(),st=d.st||[10,10,10,10,10,10],pb=2+Math.floor(((d.l||1)-1)/4),sv=d.sv||[],sk=d.sk||[];
-$('nm').textContent=d.n||'Персонаж';$('cl').textContent=(d.c||'Искатель приключений')+' · ур. '+(d.l||1)+' · бонус '+sg(pb);
-$('ac').textContent=d.ac||10;
+const d=c(),st=d.st||[10,10,10,10,10,10],pb=2+Math.floor(((d.l||1)-1)/4),sv=d.sv||[],sk=d.sk||[],at=d.a||[];
+$('nm').textContent=d.n||'Персонаж';$('cl').textContent=[(d.c||'Искатель приключений')+' '+(d.l||1)+' ур.',d.r].filter(x=>x).join(' · ');
+$('ac').textContent=d.ac||10;$('in').innerHTML='⚡'+sg(md(st[1]))+'<small>иниц.</small>';
 const hp=d.hp??10,mx=d.mhp||10,p=Math.max(0,Math.min(100,hp/mx*100));
 $('hb').style.width=p+'%';$('hb').style.background=p>50?'#2fb35a':p>25?'#e0a020':'#e04040';
-$('ht').textContent='Хиты: '+hp+' / '+mx;
-$('md').replaceChildren(...['Проверка','Спасбр.','Навыки','⚡ Иниц.'].map((t,i)=>bt(t,()=>{if(i==3)return go('i:0','Инициатива');mode=i;draw()},mode==i?'on':'')));
-$('g').className=mode==2?'g sk':'g';
-if(mode==2)return $('g').replaceChildren(...K.map((k,i)=>{const m=md(st[k[1]])+(sk.includes(i)?pb:0);return bt('<span'+(sk.includes(i)?' class="pr"':'')+'>'+k[0]+'</span><b>'+sg(m)+'</b>',()=>go('k:'+i,k[0]))}));
-$('g').replaceChildren(...A.map((a,i)=>{const m=md(st[i])+(mode&&sv.includes(i)?pb:0);return bt('<b>'+sg(m)+'</b><span>'+AN[i]+' '+st[i]+(mode&&sv.includes(i)?' ●':'')+'</span>',()=>go((mode?'s:':'c:')+a,(mode?'Спасбросок ':'')+AN[i]),'st')}));}
+$('ht').textContent='Хиты '+hp+'/'+mx+' · скорость '+(d.sp??30)+' фт · мастерство '+sg(pb);
+$('md').replaceChildren(...['Проверка','Спасбр.','Навыки','Атаки'].map((t,i)=>bt(t,()=>{mode=i;draw()},mode==i?'on':'')));
+const g=$('g');g.className='g'+['','',' sk',' at'][mode];
+if(mode==3)return g.replaceChildren(...(at.length?at.map((a,i)=>bt('⚔️<span>'+E(a[0])+'</span><i>'+sg(a[1])+' · '+E(a[2])+'</i>',()=>go('a:'+i,a[0]))):[bt('<span class="m">Атак пока нет — их добавит мастер</span>')]));
+if(mode==2)return g.replaceChildren(...K.map((k,i)=>{const m=md(st[k[1]])+(sk.includes(i)?pb:0);return bt('<span'+(sk.includes(i)?' class="pr"':'')+'>'+k[0]+'</span><b>'+sg(m)+'</b>',()=>go('k:'+i,k[0]))}));
+g.replaceChildren(...A.map((a,i)=>{const s=mode&&sv.includes(i),m=md(st[i])+(s?pb:0);return bt('<b>'+sg(m)+'</b><span>'+AN[i]+' '+st[i]+(s?' ●':'')+'</span>',()=>go((mode?'s:':'c:')+a,(mode?'Спасбросок ':'')+AN[i]),'st')}))}
 function go(q,t){
 if(busy)return;if(!W){$('o').textContent='Открой в Telegram';return}
 busy=1;$('o').textContent='🎲 '+t+'…';
-W.request(q).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(!a||a.e){$('o').textContent=a?a.e:'?';return}
-$('o').innerHTML=t+': <b class="'+(a.c>0?'c':a.c<0?'x':'')+'">'+a.t+'</b> <span class="m">'+a.f+' → ['+a.r.flat().map(Math.abs).join(', ')+']'+(a.c>0?' 💥 КРИТ':a.c<0?' 💀 провал':'')+'</span>';
+W.request(q).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(!a||a.e||a.m){$('o').textContent=a?a.e||a.m:'?';return}
+$('o').innerHTML=E(t)+': <b class="'+cl(a)+'">'+a.t+'</b>'+(a.c>0?' 💥':a.c<0?' 💀':'')+(a.d?' · урон <b>'+a.d.t+'</b>'+rs(a.d):rs(a));
 W.HapticFeedback&&W.HapticFeedback.impactOccurred('medium')},e=>{busy=0;$('o').textContent=e.code=='NOT_ALLOWED'?'Бросать можно в чате с ботом':'Не вышло: '+e.code})}
+$('in').onclick=()=>go('i:0','Инициатива');$('if').onclick=()=>go('n:0','Карточка');
 W&&W.onEvent('chatDataChanged',draw);
 draw();W&&W.ready&&W.ready();
 </script>

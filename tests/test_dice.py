@@ -44,3 +44,9 @@ def test_to_dict_marks_dropped_dice():
     r = dice.roll("2d20kl1")
     d = r.to_dict()
     assert sum(1 for v in d["r"][0] if v < 0) == 1
+
+
+def test_crit_doubles_damage_dice_not_bonus():
+    r = dice.roll("1d6+4", crit=True)
+    assert r.groups[0].count == 2 and r.bonus == 4
+    assert 6 <= r.total <= 16
