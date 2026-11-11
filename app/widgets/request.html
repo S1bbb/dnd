@@ -1,0 +1,31 @@
+<style>
+body{margin:0;padding:12px 12px max(12px,env(safe-area-inset-bottom)) 24px;font-family:system-ui,sans-serif;text-align:center}
+.m{color:var(--tg-theme-hint-color);font-size:13px}
+h3{margin:4px 0 10px;font-size:19px}
+button{width:100%;border:0;border-radius:12px;padding:12px 0;font:700 16px system-ui,sans-serif;background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}
+button:active{transform:scale(.97)}
+.die{display:inline-block;font-size:34px}
+.spin{animation:sp .5s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.t{font:800 44px system-ui,sans-serif}
+.c{color:#2fb35a}.x{color:var(--tg-theme-destructive-text-color)}
+</style>
+<div class="m" id="h">🧙 Мастер просит бросок</div>
+<h3 id="tt">…</h3>
+<div id="b"></div>
+<script>
+const W=window.TelegramWidget,$=i=>document.getElementById(i);let busy=0;
+const c=()=>{try{return JSON.parse(W.chatData)||{}}catch(e){return{}}};
+function res(a){return '<div class="t '+(a.c>0?'c':a.c<0?'x':'')+'">'+a.t+'</div><div class="m">'+a.f+' → ['+a.r.flat().map(Math.abs).join(', ')+']'+(a.c>0?' 💥 КРИТ':a.c<0?' 💀 провал':'')+'</div>'}
+function draw(){
+const d=c();$('tt').textContent=d.t||'Бросок';
+if(d.x){$('b').innerHTML=res(d.x);return}
+if(busy)return;
+const b=document.createElement('button');b.textContent='🎲 Бросить';b.onclick=go;$('b').replaceChildren(b)}
+function go(){
+const d=c();if(!W||busy)return;busy=1;
+$('b').innerHTML='<span class="die spin">🎲</span>';
+W.request('q:'+d.i).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(a&&!a.e){$('b').innerHTML=res(a);W.HapticFeedback&&W.HapticFeedback.notificationOccurred('success')}else{$('b').innerHTML='<div class="m">'+(a?a.e:'?')+'</div>'}},e=>{busy=0;draw();$('b').insertAdjacentHTML('beforeend','<div class="m">Не вышло: '+e.code+'</div>')})}
+W&&W.onEvent('chatDataChanged',draw);
+draw();W&&W.ready&&W.ready();
+</script>

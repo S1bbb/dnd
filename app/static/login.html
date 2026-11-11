@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вход мастера</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login">
+  <form method="post" action="/login" class="card">
+    <div style="font-size:48px;text-align:center">🐉</div>
+    <h1>Ширма мастера</h1>
+    <p class="hint" style="text-align:center;margin:0 0 8px">Только для того, кто ведёт игру</p>
+    <input type="password" name="password" placeholder="Пароль мастера" autofocus required>
+    <p id="bad" class="hidden" style="color:var(--red);margin:0">Неверный пароль</p>
+    <button class="primary">Войти</button>
+  </form>
+</div>
+<script>if (location.search.includes('bad')) document.getElementById('bad').classList.remove('hidden');</script>
+</body>
+</html>
