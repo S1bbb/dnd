@@ -160,3 +160,36 @@ def pretty(groups: list[Group], bonus: int, adv: int = 0) -> str:
     if adv:
         out += " (преим.)" if adv > 0 else " (помеха)"
     return out or "0"
+
+
+def manual(formula: str, value: int) -> Roll:
+    """Бросок настоящими кубиками: игрок сообщает, что выпало.
+    Если в формуле один d20 — value это значение d20, остальное (модификатор) сервер добавит сам.
+    Иначе value — сумма всех кубиков формулы."""
+    groups, bonus = parse(formula)
+    d20 = [g for g in groups if g.sides == 20 and g.count == 1]
+    lo = sum(g.count for g in groups)
+    hi = sum(g.count * g.sides for g in groups)
+    if d20 and len(groups) >= 1:
+        if not 1 <= value <= 20:
+            raise DiceError("на d20 бывает от 1 до 20")
+        for g in groups:
+            if g is d20[0]:
+                g.rolls = [value]
+            else:
+                g.rolls = [secrets.randbelow(g.sides) + 1 for _ in range(g.count)]
+            g.kept = [True] * g.count
+    else:
+        if not lo <= value <= hi:
+            raise DiceError(f"для {formula} на кубиках бывает от {lo} до {hi}")
+        left = value
+        for gi, g in enumerate(groups):
+            g.rolls = []
+            for k in range(g.count):
+                rest = sum(x.count for x in groups[gi + 1:]) + (g.count - k - 1)
+                v = max(1, min(g.sides, left - rest))
+                g.rolls.append(v)
+                left -= v
+            g.kept = [True] * g.count
+    total = sum(g.value for g in groups) + bonus
+    return Roll(pretty(groups, bonus) + " (свои кубики)", groups, bonus, total)

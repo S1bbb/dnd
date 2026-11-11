@@ -51,7 +51,7 @@ W.HapticFeedback&&W.HapticFeedback.notificationOccurred(a.c<0?'error':'success')
 $('go').onclick=()=>{
 const f=fx();if(!f||busy)return;if(!W){$('d').textContent='Открой в Telegram';return}
 busy=1;$('t').className='t spin';$('t').textContent='🎲';$('d').textContent='';
-W.request('r'+'nad'[mode]+'v'+':'+f).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(a&&a.e){$('t').className='t';$('t').textContent='?';$('d').textContent=a.e}else if(a)show(a)},e=>{busy=0;$('t').className='t';$('t').textContent='!';$('d').textContent=e.code=='NOT_ALLOWED'?'Бросать можно в чате с ботом':e.code=='RATE_LIMITED'?'Слишком быстро, подожди':'Не вышло: '+e.code})};
+W.request(((()=>{try{const j=JSON.parse(W.chatData);return j.id?j.id+'|':''}catch(e){return ''}})())+'r'+'nad'[mode]+'v'+':'+f).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(a&&a.e){$('t').className='t';$('t').textContent='?';$('d').textContent=a.e}else if(a)show(a)},e=>{busy=0;$('t').className='t';$('t').textContent='!';$('d').textContent=e.code=='NOT_ALLOWED'?'Бросать можно в чате с ботом':e.code=='RATE_LIMITED'?'Слишком быстро, подожди':'Не вышло: '+e.code})};
 W&&W.onEvent('chatDataChanged',draw);
 pool[20]=1;draw();W&&W.ready&&W.ready();
 </script>

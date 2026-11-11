@@ -41,16 +41,22 @@ WAITING = {"name": "Брат Ансельм", "cls": "Жрец", "lvl": 5, "race
 async def seed(game) -> None:
     if game.db.characters():
         return
+    from . import engine
+    from .data.pregens import PREGENS
     for tg_id, username, first, ch in PARTY:
         game.db.add_player(tg_id, username, first)
-        game.db.create_character(clean_char(ch, DEFAULT_CHAR), tg_id)
-    game.db.create_character(clean_char(WAITING, DEFAULT_CHAR))
-    chars = {c["tg_id"]: c for c in game.db.characters() if c["tg_id"]}
+        game.db.create_character(clean_char(ch, DEFAULT_CHAR), tg_id, 1)
+    game.db.create_character(clean_char(WAITING, DEFAULT_CHAR), None, 1)
+    game.db.add_player(104, "lena", "Лена")
+    p = {k: v for k, v in PREGENS[2].items() if k != "title"}
+    game.db.create_character(engine.new_character(p), 104, 1)
+    chars = {c["tg_id"]: c for c in game.db.characters(1) if c["tg_id"]}
     for tg_id, title, formula, adv in [
         (101, "Атлетика", "1d20+5", 0),
         (102, "", "8d6", 0),
         (103, "Скрытность", "1d20+6", 1),
     ]:
-        game.record(tg_id, game.who(chars[tg_id]), title, dice.roll(formula, adv))
-    game.attack(chars[101], 0)
-    game.gm_roll("1d20+4", "Восприятие гоблинов")
+        game.record(chars[tg_id], title, dice.roll(formula, adv))
+    game.roll_check(chars[101], "a", "0")
+    game.gm_roll(1, "1d20+4", "Восприятие гоблинов")
+    game.db.add_entry(1, cat="session", title="Сессия 1: Пещера гоблинов", body="Партия нашла вход в пещеру.", vis="all", session=1)

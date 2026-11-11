@@ -8,7 +8,7 @@ button:active{transform:scale(.97)}
 .spin{animation:sp .5s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 .t{font:800 44px system-ui,sans-serif}
-.c{color:#2fb35a}.x{color:var(--tg-theme-destructive-text-color)}
+input{width:60px;font:600 16px system-ui;padding:8px;border-radius:10px;border:0;margin-top:8px;text-align:center}.g{display:flex;gap:6px;justify-content:center;align-items:center}.c{color:#2fb35a}.x{color:var(--tg-theme-destructive-text-color)}
 </style>
 <div class="m" id="h">🧙 Мастер просит бросок</div>
 <h3 id="tt">…</h3>
@@ -16,16 +16,19 @@ button:active{transform:scale(.97)}
 <script>
 const W=window.TelegramWidget,$=i=>document.getElementById(i);let busy=0;
 const c=()=>{try{return JSON.parse(W.chatData)||{}}catch(e){return{}}};
-function res(a){return '<div class="t '+(a.c>0?'c':a.c<0?'x':'')+'">'+a.t+'</div><div class="m">'+a.f+' → ['+a.r.flat().map(Math.abs).join(', ')+']'+(a.c>0?' 💥 КРИТ':a.c<0?' 💀 провал':'')+'</div>'}
+function res(a){if(a.h)return '<div class="t">🤫</div><div class="m">Брошено — результат увидит только мастер</div>';return '<div class="t '+(a.c>0?'c':a.c<0?'x':'')+'">'+a.t+'</div><div class="m">'+a.f+' → ['+a.r.flat().map(Math.abs).join(', ')+']'+(a.c>0?' 💥 КРИТ':a.c<0?' 💀 провал':'')+'</div>'}
 function draw(){
 const d=c();$('tt').textContent=d.t||'Бросок';
+if(d.z){$('b').innerHTML='<div class="m">❌ Мастер отменил запрос</div>';return}
 if(d.x){$('b').innerHTML=res(d.x);return}
-if(busy)return;
-const b=document.createElement('button');b.textContent='🎲 Бросить';b.onclick=go;$('b').replaceChildren(b)}
-function go(){
+if(busy)return;if(d.h)$('h').textContent='🤫 Тайный бросок';
+const b=document.createElement('button');b.textContent='🎲 Бросить';b.onclick=()=>go('');
+const g=document.createElement('div');g.className='g m';g.innerHTML='или свой d20: <input id="mv" type="number" min="1" max="20" inputmode="numeric"><button id="mo" style="width:auto;padding:8px 12px;margin-top:8px">OK</button>';
+$('b').replaceChildren(b,g);$('mo').onclick=()=>{const v=parseInt($('mv').value);if(v>0)go(':m'+v)}}
+function go(x){
 const d=c();if(!W||busy)return;busy=1;
 $('b').innerHTML='<span class="die spin">🎲</span>';
-W.request('q:'+d.i).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(a&&!a.e){$('b').innerHTML=res(a);W.HapticFeedback&&W.HapticFeedback.notificationOccurred('success')}else{$('b').innerHTML='<div class="m">'+(a?a.e:'?')+'</div>'}},e=>{busy=0;draw();$('b').insertAdjacentHTML('beforeend','<div class="m">Не вышло: '+e.code+'</div>')})}
+W.request('q:'+d.i+x).then(r=>{busy=0;let a;try{a=JSON.parse(r.result)}catch(e){}if(a&&!a.e){$('b').innerHTML=res(a);W.HapticFeedback&&W.HapticFeedback.notificationOccurred('success')}else{$('b').innerHTML='<div class="m">'+(a?a.e:'?')+'</div>'}},e=>{busy=0;draw();$('b').insertAdjacentHTML('beforeend','<div class="m">Не вышло: '+e.code+'</div>')})}
 W&&W.onEvent('chatDataChanged',draw);
 draw();W&&W.ready&&W.ready();
 </script>

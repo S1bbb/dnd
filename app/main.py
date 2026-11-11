@@ -67,6 +67,7 @@ async def main() -> None:
     await web.TCPSite(runner, os.getenv("HOST", "0.0.0.0"), port).start()
     log.info("сайт мастера: http://localhost:%s", port)
 
+    asyncio.create_task(game.backups(os.path.join(os.path.dirname(db_path) or ".", "backups")))
     try:
         if demo:
             game.me = await bot.call("getMe")
