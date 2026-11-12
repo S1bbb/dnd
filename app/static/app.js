@@ -54,6 +54,8 @@ function renderGames() {
     <button class="ghost sm" data-ren="${g.id}">✎</button></div>`).join('');
 }
 $('#game-sel').addEventListener('change', (e) => switchGame(+e.target.value));
+$('#help-open').addEventListener('click', () => $('#help-dlg').showModal());
+$('#fight-go').addEventListener('click', () => tab('combat'));
 $('#games-btn').addEventListener('click', () => { renderGames(); $('#games-dlg').showModal(); });
 $('#games-list').addEventListener('click', async (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -104,18 +106,17 @@ function renderPlayers() {
     const c = ch.char, d = ch.d, mx = d.hp_max.val, pct = Math.max(0, Math.min(100, (c.hp / mx) * 100));
     const sel = S.selected.has(ch.id), last = lastRollOf(ch.id);
     const conds = [...(c.conds || []), ...(c.exh ? ['Истощение ' + c.exh] : [])];
-    const owner = ch.player ? `🎮 ${esc(ch.player.first_name)}` : '<span class="wait">⏳ ждёт игрока</span>';
+    const owner = ch.player ? esc(ch.player.first_name) : '<span class="wait">ждёт игрока</span>';
     return `<div class="pc ${sel ? 'sel' : ''} ${ch.player ? '' : 'unbound'} ${c.hp <= 0 ? 'down' : ''}" data-id="${ch.id}">
-      <div class="pc-top open" title="Открыть лист">
-        <div class="pc-name"><b>${esc(c.name || 'Безымянный')}</b><span>${esc([`${c.cls || 'без класса'} ${d.lvl} ур.`, c.race].filter(Boolean).join(' · '))} · ${owner}</span></div>
-        <div class="ac" title="Класс доспеха: ${esc(parts(d.ac.parts))}">${d.ac.val}<small>КД</small></div></div>
+      <div class="pc-top"><input type="checkbox" class="pick" title="Отметить: проверка, сообщение и отдых — только отмеченным" ${sel ? 'checked' : ''}>
+        <div class="pc-name open" title="Открыть лист"><b>${esc(c.name || 'Безымянный')}</b><span>${esc([`${c.cls || 'без класса'} ${d.lvl} ур.`, c.race].filter(Boolean).join(' · '))} · ${owner}</span></div>
+        <div class="ac open" title="Класс доспеха: ${esc(parts(d.ac.parts))}">${d.ac.val}<small>КД</small></div></div>
       <div class="hp open"><div class="hp-bar"><div style="width:${pct}%;background:${hpColor(pct)}"></div></div>
-        <span class="hp-num">❤️ ${c.hp}/${mx}${c.temp ? ` <i>+${c.temp}</i>` : ''}</span></div>
-      <div class="hp-ctl"><input class="hp-in" type="number" placeholder="сколько" min="0"><button class="dmg">🗡 Урон</button><button class="heal">✚ Лечить</button></div>
-      ${conds.length || c.conc || (c.effects || []).length || c.lvl_pending ? `<div class="chips">${conds.map((x) => `<span class="chip bad" title="${esc(S.conditions[x] || '')}">${esc(x)}</span>`).join('')}${c.conc ? `<span class="chip">🧠 ${esc(c.conc)}</span>` : ''}${(c.effects || []).map((x) => `<span class="chip good">✨ ${esc(x.n)}${x.rounds ? ' ' + x.rounds + 'р' : ''}</span>`).join('')}${c.lvl_pending ? '<span class="chip good">📈 ждёт /levelup</span>' : ''}</div>` : ''}
-      ${c.hp <= 0 && !c.dead ? `<div class="chips"><span class="chip bad">💀 Спасброски от смерти: ${(c.death || [0, 0])[0]} ✔ / ${(c.death || [0, 0])[1]} ✘</span></div>` : ''}
-      <div class="pc-foot"><label class="sel-all"><input type="checkbox" class="pick" ${sel ? 'checked' : ''}> выбрать</label><span class="grow"></span>
-        <span class="hint">${last ? `🎲 ${esc(last.title || last.formula)}: <b>${last.total}</b>` : ''}</span></div>
+        <span class="hp-num">${c.hp}/${mx}${c.temp ? ` <i>+${c.temp}</i>` : ''}</span></div>
+      <div class="hp-ctl"><input class="hp-in" type="number" placeholder="сколько" min="0"><button class="dmg">Урон</button><button class="heal">Лечить</button></div>
+      ${conds.length || c.conc || (c.effects || []).length || c.lvl_pending ? `<div class="chips">${conds.map((x) => `<span class="chip bad" title="${esc(S.conditions[x] || '')}">${esc(x)}</span>`).join('')}${c.conc ? `<span class="chip">Концентрация: ${esc(c.conc)}</span>` : ''}${(c.effects || []).map((x) => `<span class="chip good">${esc(x.n)}${x.rounds ? ' ' + x.rounds + 'р' : ''}</span>`).join('')}${c.lvl_pending ? '<span class="chip good">ждёт /levelup</span>' : ''}</div>` : ''}
+      ${c.hp <= 0 && !c.dead ? `<div class="chips"><span class="chip bad">Спасброски от смерти: ${(c.death || [0, 0])[0]} ✔ / ${(c.death || [0, 0])[1]} ✘</span></div>` : ''}
+      ${last ? `<div class="pc-foot hint">Последний бросок: ${esc(last.title || last.formula)} — <b>${last.total}</b></div>` : ''}
     </div>`;
   }).join('');
   updateTargetHint();
@@ -137,18 +138,11 @@ $('#players').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ta
 
 $('#sel-all').addEventListener('change', (e) => { S.selected = e.target.checked ? new Set(S.chars.map((c) => c.id)) : new Set(); renderPlayers(); });
 function targets() { return S.selected.size ? [...S.selected] : S.chars.filter((c) => c.tg_id).map((c) => c.id); }
-function updateTargetHint() { const n = S.selected.size; $('#ask-target').textContent = n ? `выбранные: ${n}` : 'все игроки (или отметь «выбрать» у персонажей)'; }
+function updateTargetHint() { const n = S.selected.size; $('#ask-target').textContent = n ? `отмеченные: ${n}` : 'все игроки'; }
 function sentToast(prefix, sent, asked) { const m = asked - sent; toast(`${prefix}: ${sent}` + (m > 0 ? ` (без игрока: ${m})` : '')); }
 
 /* ---------- вкладки ---------- */
-const TAB_HINT = {
-  feed: 'Исследование и разговоры: проси проверки справа, броски игроков появляются в ленте. Урон и лечение применяй кнопками под броском.',
-  combat: 'Драка: добавь противников, начни бой и иди по ходам — подсказка ниже скажет, что делать.',
-  map: 'Необязательно: карта местности для игроков с фишками и туманом.',
-  journal: 'Заметки мастера: сюжет, задания, итоги сессий. Механика (урон, отдых, бои) записывается сама.',
-};
 function tab(name) {
-  $('#tab-hint').textContent = TAB_HINT[name] || '';
   $$('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === name));
   $$('.tab').forEach((t) => t.classList.toggle('hidden', t.id !== 't-' + name));
   store('tab', name);
@@ -167,11 +161,12 @@ function rollHtml(r) {
   const dc = d.dc ? ` <span class="${d.ok ? 'okv' : 'badv'}">${d.ok ? '✅ успех' : '❌ провал'} (СЛ ${d.dc})</span>` : '';
   const ap = d.ap || (d.d ? { k: 'dmg', n: d.d.t } : null);
   const apHtml = ap && !d.applied ? `<div class="ap" data-rid="${r.id}">${ap.k === 'heal'
-    ? `<button class="sm ap-go heal-b">✚ Вылечить ${ap.n}…</button>`
-    : `<button class="sm ap-go">🗡 Нанести ${ap.n} урона…</button>${d.d ? ' <span class="hint">попал, если ' + r.total + ' ≥ КД цели</span>' : ''}${ap.dc ? ` <span class="hint">цели бросают спас ${esc(ap.save || '')} СЛ ${ap.dc}${ap.half ? ', при успехе — половина' : ''}</span>` : ''}`}</div>` : '';
-  return `<div class="roll ${d.c > 0 ? 'crit' : ''} ${d.c < 0 ? 'fumble' : ''} ${r.tg_id ? '' : 'gm'} ${r.hidden ? 'secret' : ''}">
-    <div class="tot">${r.total}</div><div><span class="time">${t}</span> <span class="who">${esc(r.who)}</span>${r.title ? ` — <span class="ttl">${d.d ? '⚔️ ' : ''}${esc(r.title)}</span>` : ''}
-    ${d.c > 0 ? ' 💥' : d.c < 0 ? ' 💀' : ''}${r.hidden ? ' 🤫' : ''}${d.phys ? ' 🎲свои' : ''}${dc}${d.d && S.compact ? ` · урон <b class="dmgv">${d.d.t}</b>` : ''}
+    ? `<button class="sm ap-go heal-b">Вылечить ${ap.n}…</button>`
+    : `<button class="sm ap-go">Нанести ${ap.n} урона…</button>${d.d ? ' <span class="hint">попал, если ' + r.total + ' ≥ КД цели</span>' : ''}${ap.dc ? ` <span class="hint">цели бросают спас ${esc(ap.save || '')} СЛ ${ap.dc}${ap.half ? ', при успехе — половина' : ''}</span>` : ''}`}</div>` : '';
+  const fresh = S.seenRoll != null && r.id > S.seenRoll;
+  return `<div class="roll ${fresh ? 'pop' : ''} ${d.c > 0 ? 'crit' : ''} ${d.c < 0 ? 'fumble' : ''} ${r.tg_id ? '' : 'gm'} ${r.hidden ? 'secret' : ''}">
+    <div class="tot">${r.total}</div><div><span class="time">${t}</span> <span class="who">${esc(r.who)}</span>${r.title ? ` — <span class="ttl">${esc(r.title)}</span>` : ''}
+    ${d.c > 0 ? ' 💥' : d.c < 0 ? ' 💀' : ''}${r.hidden ? ' 🤫' : ''}${d.phys ? ' <span class="hint">свои кости</span>' : ''}${dc}${d.d && S.compact ? ` · урон <b class="dmgv">${d.d.t}</b>` : ''}
     <div class="meta det">${esc(r.formula)} → ${diceHtml(d)}</div>${S.compact ? '' : dmg}${apHtml}</div></div>`;
 }
 function applyTargets(kind) {
@@ -190,7 +185,7 @@ function openApply(box) {
   if (ap.self) { const i = tg.findIndex((x) => x.t === 'pc' && x.id === ap.self); if (i > 0) tg.unshift(tg.splice(i, 1)[0]); }
   box.innerHTML = `<div class="row gap wrap"><input type="number" class="short ap-n" value="${ap.n}"> ${ap.k === 'dmg' ? '<button class="ghost sm ap-half">½ половина</button>' : ''}
     <span class="hint">${ap.k === 'heal' ? 'кого лечим?' : 'по кому?'}</span></div>
-    <div class="row gap wrap">${tg.map((x) => `<button class="sm ap-tg ${x.t}" data-t="${x.t}" data-id="${x.id}">${x.t === 'npc' ? '👹' : '🧙'} ${esc(x.n)} <span class="hint">${x.hp}${ap.k === 'dmg' ? ' · КД ' + x.ac + (hitRoll != null ? (hitRoll >= x.ac ? ' ✓' : ' ✗') : '') : ''}</span></button>`).join('') || '<span class="hint">Некого</span>'}
+    <div class="row gap wrap">${tg.map((x) => `<button class="sm ap-tg ${x.t}" data-t="${x.t}" data-id="${x.id}">${esc(x.n)} <span class="hint">${x.hp}${ap.k === 'dmg' ? ' · КД ' + x.ac + (hitRoll != null ? (hitRoll >= x.ac ? ' ✓' : ' ✗') : '') : ''}</span></button>`).join('') || '<span class="hint">Некого</span>'}
     <button class="ghost sm ap-x">отмена</button></div>`;
 }
 document.addEventListener('click', async (e) => {
@@ -208,7 +203,8 @@ document.addEventListener('click', async (e) => {
 function renderFeed() {
   $('#feed').classList.toggle('compact', S.compact);
   $('#feed').innerHTML = S.rolls.length ? S.rolls.slice().reverse().map(rollHtml).join('') : '<p class="hint">Тут будут появляться броски в реальном времени.</p>';
-  $('#feed-fold').textContent = S.compact ? '▦ подробно' : '▤ компактно';
+  $('#feed-fold').textContent = S.compact ? 'подробно' : 'компактно';
+  setTimeout(() => { S.seenRoll = S.rolls.reduce((m, x) => Math.max(m, x.id), 0); }, 0);
 }
 $('#feed').addEventListener('click', (e) => { const r = e.target.closest('.roll'); if (r && S.compact) r.classList.toggle('open'); });
 $('#feed-fold').addEventListener('click', () => { S.compact = !S.compact; store('compact', S.compact); renderFeed(); });
@@ -221,7 +217,7 @@ function renderRequests() {
     const done = qs.filter((q) => q.status === 'done').length;
     return `<div class="req"><div class="row gap"><b class="grow">${esc(qs[0].title)}${qs[0].dc ? ' · СЛ ' + qs[0].dc : ''} ${VIS[qs[0].vis] || ''}</b><span class="hint">${done}/${qs.length}</span></div>
       ${qs.map((q) => { const ch = charById(q.char_id); return `<div class="req-row"><span class="grow">${esc(ch ? ch.char.name : '?')}</span>
-        ${q.status === 'done' ? `<b>${q.total ?? '✓'}</b>${q.dc && q.total != null ? (q.total >= q.dc ? ' ✅' : ' ❌') : ''}` : q.status === 'cancelled' ? '<span class="hint">отменён</span>' : q.status === 'failed' ? '<span class="hint">не доставлен</span>' : `<span class="hint">⏳ ждём</span> <button class="ghost sm" data-cancel="${q.id}">✕</button>`}</div>`; }).join('')}</div>`;
+        ${q.status === 'done' ? `<b>${q.total ?? '✓'}</b>${q.dc && q.total != null ? (q.total >= q.dc ? ' ✅' : ' ❌') : ''}` : q.status === 'cancelled' ? '<span class="hint">отменён</span>' : q.status === 'failed' ? '<span class="hint">не доставлен</span>' : `<span class="hint">ждём</span> <button class="ghost sm" data-cancel="${q.id}">✕</button>`}</div>`; }).join('')}</div>`;
   }).join('');
   $('#requests').innerHTML = html || '<p class="hint">Запросов пока нет.</p>';
 }
@@ -287,22 +283,22 @@ $('#msg-go').addEventListener('click', async () => {
 /* ---------- бой ---------- */
 function renderCombat() {
   const cb = S.combat || { on: false, list: [], round: 0, turn: -1 };
-  $('#cb-round').textContent = cb.on ? `Раунд ${cb.round}` : 'Бой не идёт';
+  $('#cb-round').textContent = cb.on ? `Идёт бой · раунд ${cb.round}` : ''; $('.cb-head').classList.toggle('hidden', !cb.on);
   $('#cb-start').classList.toggle('hidden', cb.on);
   $('#cb-next').classList.toggle('hidden', !cb.on); $('#cb-end').classList.toggle('hidden', !cb.on); $('#cb-ask-w').classList.toggle('hidden', !cb.on);
   const missing = S.chars.filter((c) => !cb.list.some((x) => x.cid === c.id));
   $('#cb-party').classList.toggle('hidden', !missing.length || (!cb.on && missing.every((c) => c.tg_id)));
-  $('#cb-party').textContent = `👥 Партия в бой (${missing.length})`;
+  $('#cb-party').textContent = `Партия в бой (${missing.length})`;
   const cur = cb.on ? cb.list[cb.turn] : null;
   const npcs = cb.list.filter((x) => x.kind === 'npc').length;
   let g;
   if (!cb.on) g = `<b>Как начать бой:</b><ol><li>Добавь противников в блоке ниже (${npcs ? '✓ добавлено: ' + npcs : 'шаблон, например «Гоблин», и сколько'}).</li>
-    <li>Нажми <b>⚔️ Начать бой</b> — герои игроков встанут в очередь сами, им придёт запрос инициативы.</li><li>Дальше просто жми <b>Следующий ход</b> и следуй подсказкам здесь.</li></ol>`;
+    <li>Нажми <b>Начать бой</b> — герои игроков встанут в очередь сами, им придёт запрос инициативы.</li><li>Дальше просто жми <b>Следующий ход</b> и следуй подсказкам здесь.</li></ol>`;
   else if (!cur) g = '<b>Бой начался.</b> Ждём бросков инициативы от игроков (у кого «?» — ещё не бросил; можно вписать вручную). Затем жми <b>Следующий ход ▶</b>.';
-  else if (cur.kind === 'npc') g = `<b>Ходит 👹 ${esc(cur.name)}</b>. Опиши, что он делает, и брось атаку: ${(cur.atk || []).map((a, j) => `<button class="sm g-atk" data-id="${cur.id}" data-i="${j}">⚔️ ${esc(a[0])}</button>`).join(' ') || '(атак нет — впиши урон вручную у цели)'}
-    <br><span class="hint">Бросок ≥ КД героя — попал. Под броском появится «🗡 Нанести урон» — выбери, по кому. Затем <b>Следующий ход ▶</b>.</span>`;
-  else g = `<b>Ходит 🧙 ${esc(cur.name)}</b>. Спроси игрока: «Что делаешь?». Он бросает в боте — бросок появится ниже.
-    <br><span class="hint">Атака попала, если бросок ≥ КД цели (у гоблина КД 15). Нажми «🗡 Нанести» под броском и выбери противника. Затем <b>Следующий ход ▶</b>.</span>`;
+  else if (cur.kind === 'npc') g = `<b>Ходит ${esc(cur.name)}</b>. Опиши, что он делает, и брось атаку: ${(cur.atk || []).map((a, j) => `<button class="sm g-atk" data-id="${cur.id}" data-i="${j}">${esc(a[0])}</button>`).join(' ') || '(атак нет — впиши урон вручную у цели)'}
+    <br><span class="hint">Бросок ≥ КД героя — попал. Под броском появится «Нанести урон» — выбери, по кому. Затем <b>Следующий ход ▶</b>.</span>`;
+  else g = `<b>Ходит ${esc(cur.name)}</b>. Спроси игрока: «Что делаешь?». Он бросает в боте — бросок появится ниже.
+    <br><span class="hint">Атака попала, если бросок ≥ КД цели (у гоблина КД 15). Нажми «Нанести урон» под броском и выбери противника. Затем <b>Следующий ход ▶</b>.</span>`;
   $('#cb-guide').innerHTML = g;
   $('#cb-feed').innerHTML = S.rolls.slice(-6).reverse().map(rollHtml).join('') || '<p class="hint">Пока бросков нет.</p>';
   $('#cb-list').innerHTML = cb.list.length ? cb.list.map((x, i) => {
@@ -313,13 +309,13 @@ function renderCombat() {
     return `<div class="cb-row ${i === cb.turn ? 'cur' : ''} ${x.kind} ${x.hidden ? 'hid' : ''} ${hp <= 0 ? 'down' : ''}" data-id="${x.id}">
       <input class="ini short" type="number" value="${x.init ?? ''}" placeholder="?" title="Инициатива">
       <div class="grow"><b>${esc(x.name)}</b>${x.hidden ? ' 🙈' : ''} <span class="hint">КД ${ac}${x.cr ? ' · ПО ' + x.cr : ''}</span>
-        <div class="chips">${conds.map((c) => `<span class="chip bad">${esc(c)}</span>`).join('')}${effs.map((e) => `<span class="chip good" data-rme="${e.id}">✨ ${esc(e.n)}${e.rounds ? ' ' + e.rounds + 'р' : ''}</span>`).join('')}</div>
-        ${x.atk && x.atk.length ? `<div class="row gap wrap">${x.atk.map((a, j) => `<button class="ghost sm atk" data-i="${j}">⚔️ ${esc(a[0])} ${a[1] ? sg(a[1]) : ''} ${esc(a[2])}</button>`).join('')}</div>` : ''}
+        <div class="chips">${conds.map((c) => `<span class="chip bad">${esc(c)}</span>`).join('')}${effs.map((e) => `<span class="chip good" data-rme="${e.id}">${esc(e.n)}${e.rounds ? ' ' + e.rounds + 'р' : ''}</span>`).join('')}</div>
+        ${x.atk && x.atk.length ? `<div class="row gap wrap">${x.atk.map((a, j) => `<button class="ghost sm atk" data-i="${j}">${esc(a[0])} ${a[1] ? sg(a[1]) : ''} ${esc(a[2])}</button>`).join('')}</div>` : ''}
         ${x.note ? `<div class="hint">${esc(x.note)}</div>` : ''}</div>
-      <div class="cb-hp"><span>${hp}/${mx}</span><input class="hp-in" type="number" placeholder="±"><button class="dmg">🗡</button><button class="heal">✚</button></div>
-      <div class="col-btns">${x.kind === 'npc' ? `<button class="ghost sm cond" title="Состояние">🩹</button><button class="ghost sm hide" title="Скрыть/показать">${x.hidden ? '👁' : '🙈'}</button>` : '<button class="ghost sm edit" title="Хиты, состояния, эффекты">🩹 Лист</button>'}<button class="ghost sm rm" title="Убрать">✕</button></div>
+      <div class="cb-hp"><span>${hp}/${mx}</span><input class="hp-in" type="number" placeholder="±"><button class="dmg" title="Урон">−</button><button class="heal" title="Лечить">+</button></div>
+      <div class="col-btns">${x.kind === 'npc' ? `<button class="ghost sm cond">Состояния</button><button class="ghost sm hide">${x.hidden ? 'Показать' : 'Скрыть'}</button>` : '<button class="ghost sm edit" title="Хиты, состояния, эффекты">Лист</button>'}<button class="ghost sm rm" title="Убрать">✕</button></div>
     </div>`;
-  }).join('') : '<p class="hint">Участников пока нет. «Начать бой» добавит героев игроков, «👥 Партия в бой» — всех героев сразу; противников — ниже.</p>';
+  }).join('') : '<p class="hint">Участников пока нет. «Начать бой» добавит героев игроков, «Партия в бой» — всех героев сразу; противников — ниже.</p>';
 }
 async function cbOp(op, extra = {}) { const r = await api(G('/combat'), { op, ...extra }); if (r.combat) { S.combat = r.combat; renderCombat(); } return r; }
 $('#cb-start').addEventListener('click', () => cbOp('start'));
@@ -362,10 +358,10 @@ $('#npc-add').addEventListener('click', () => {
 /* ---------- карта ---------- */
 const MAP = { brush: 'move', drag: null, ruler: null, img: null, imgId: null, saveT: null, sel: null, moved: false };
 const BRUSH_HINT = {
-  move: '✋ Тащи фишку мышью. Нажми на фишку — переименовать, сменить размер, спрятать или убрать.',
-  ruler: '📏 Тяни от одной клетки к другой — покажет расстояние в футах. Можно и в режиме «Двигать» с зажатым Shift.',
-  hide: '🌫 Води по клеткам — они скроются от игроков. Удобно: «Скрыть всё», а потом открывать по мере исследования.',
-  show: '☀️ Води по клеткам — игроки их увидят.',
+  move: 'Тащи фишку мышью. Нажми на фишку — переименовать, сменить размер, спрятать или убрать.',
+  ruler: 'Тяни от одной клетки к другой — покажет расстояние в футах. Можно и в режиме «Двигать» с зажатым Shift.',
+  hide: 'Води по клеткам — они скроются от игроков. Удобно: «Скрыть всё», а потом открывать по мере исследования.',
+  show: 'Води по клеткам — игроки их увидят.',
 };
 function sceneObj() { return S.scene; }
 function renderScenes() {
@@ -379,7 +375,7 @@ function renderScenes() {
   for (const k of ['grid', 'ox', 'oy', 'cols', 'rows']) $('#sc-' + k).value = sc[k];
   $('#sc-size').classList.toggle('hidden', !!sc.img);
   $('#sc-fog').checked = !!sc.fog_on;
-  $('#sc-show').textContent = sc.show ? '👁 Игроки видят карту' : '🙈 Игроки не видят';
+  $('#sc-show').textContent = sc.show ? 'Видна игрокам' : 'Скрыта от игроков';
   $('#sc-show').classList.toggle('live', !!sc.show);
   $('#fog-tools').classList.toggle('hidden', !['hide', 'show'].includes(MAP.brush) && !sc.fog_on);
   $('#map-hint').textContent = BRUSH_HINT[MAP.brush];
@@ -397,7 +393,7 @@ function saveScene(extra = {}, now = false) {
 async function newScene() { const n = prompt('Название карты', S.scenes.length ? 'Карта ' + (S.scenes.length + 1) : 'Подземелье'); if (!n) return; await api(G('/scene'), { name: n, current: true, party: true }); await loadScenes(); toast('🗺 Карта создана, герои уже на ней'); }
 $('#sc-sel').addEventListener('change', async (e) => { if (+e.target.value) await api(G(`/scene/${+e.target.value}/current`)); });
 $('#sc-new').addEventListener('click', newScene);
-function mapWide(on) { document.body.classList.toggle('map-wide', on); $('#map-wide').textContent = on ? '⇲ Обычный вид' : '⛶ Шире'; store('mapWide', on); }
+function mapWide(on) { document.body.classList.toggle('map-wide', on); $('#map-wide').textContent = on ? 'Обычный вид' : 'Шире'; store('mapWide', on); }
 $('#map-wide').addEventListener('click', () => mapWide(!document.body.classList.contains('map-wide')));
 $('#sc-new2').addEventListener('click', newScene);
 $('#sc-ren').addEventListener('click', () => { const sc = sceneObj(); if (!sc) return; const n = prompt('Название', sc.name); if (n) { sc.name = n; saveScene({}, true).then(loadScenes); } });
@@ -440,13 +436,13 @@ const TOK_COLORS = ['#e0574a', '#e3b45c', '#5cbf6a', '#6fa8dc', '#b07cd8', '#cfc
 function renderTokPanel() {
   const sc = sceneObj(), t = sc && sc.tokens.find((x) => x.id === MAP.sel);
   const el = $('#tok-panel'); el.classList.toggle('hidden', !t); if (!t) return;
-  el.innerHTML = `<div class="row gap wrap"><b class="grow">${t.cid ? '🧙' : '👹'} ${esc(t.n)}</b><button class="ghost sm" data-tk="close">✕</button></div>
+  el.innerHTML = `<div class="row gap wrap"><b class="grow">${esc(t.n)}</b><button class="ghost sm" data-tk="close">✕</button></div>
     <div class="row gap wrap">
       ${t.cid ? '' : `<input class="tk-name" value="${esc(t.n)}" placeholder="Имя">`}
       <span class="hint">Размер</span><div class="seg tk-size">${[1, 2, 3, 4].map((n) => `<button data-sz="${n}" class="${(t.size || 1) === n ? 'on' : ''}" title="${['обычный', 'большой', 'огромный', 'исполинский'][n - 1]}">${n}×${n}</button>`).join('')}</div>
       <div class="tk-colors">${TOK_COLORS.map((c) => `<button data-col="${c}" style="background:${c}" class="${t.color === c ? 'on' : ''}" title="Цвет"></button>`).join('')}</div>
     </div>
-    <div class="row gap wrap"><button class="ghost sm" data-tk="hide">${t.hidden ? '👁 Показать игрокам' : '🙈 Спрятать от игроков'}</button><button class="ghost sm danger" data-tk="del">🗑 Убрать с карты</button></div>`;
+    <div class="row gap wrap"><button class="ghost sm" data-tk="hide">${t.hidden ? 'Показать игрокам' : 'Спрятать от игроков'}</button><button class="ghost sm danger" data-tk="del">Убрать с карты</button></div>`;
 }
 $('#tok-panel').addEventListener('click', (e) => {
   const sc = sceneObj(), t = sc && sc.tokens.find((x) => x.id === MAP.sel); if (!t) return;
@@ -591,7 +587,7 @@ function renderEditor() {
   $('#ed-title').textContent = `${c.name || 'Персонаж'} — ${c.cls || ''} ${d.lvl} ур.`;
   $('#ed-send').classList.toggle('hidden', !ch.player);
   const lb = $('#ed-link');
-  if (ch.link) lb.innerHTML = (ch.player ? `🎮 Играет <b>${esc(ch.player.first_name)}</b>. ` : '⏳ Ждёт игрока. ') + `<code>${esc(ch.link)}</code> <button class="ghost sm" id="ed-copy">Копировать</button>` + (ch.player ? ' <button class="ghost sm" id="ed-unbind">Отвязать</button>' : '');
+  if (ch.link) lb.innerHTML = (ch.player ? `Играет <b>${esc(ch.player.first_name)}</b>. ` : 'Ждёт игрока. ') + `<code>${esc(ch.link)}</code> <button class="ghost sm" id="ed-copy">Копировать</button>` + (ch.player ? ' <button class="ghost sm" id="ed-unbind">Отвязать</button>' : '');
   if (edTab === 'sum') {
     b.innerHTML = `${d.warn.map((w) => `<div class="warn">⚠️ ${esc(w)}</div>`).join('')}
       <div class="stat-row"><div>КД ${bd(d.ac.val, d.ac.parts)}</div><div>Хиты ${c.hp}/${bd(d.hp_max.val, d.hp_max.parts)}</div><div>Иниц. ${bd(sg(d.init.bonus), d.init.parts)}</div>
@@ -609,10 +605,10 @@ function renderEditor() {
   } else if (edTab === 'state') {
     b.innerHTML = `<div class="big-hp">❤️ ${c.hp} / ${d.hp_max.val}${c.temp ? ` <i>+${c.temp} временных</i>` : ''} <span class="hint">· КД ${d.ac.val} · скорость ${d.spd.val} фт</span></div>
       <div class="row gap wrap"><input id="st-n" type="number" class="short" placeholder="сколько"><input id="st-type" placeholder="тип (огонь…)" class="short2" title="Если указать тип, учтутся сопротивления">
-        <button data-op="dmg">🗡 Нанести урон</button><button data-op="heal">✚ Вылечить</button><button class="ghost" data-op="temp">🛡 Временные хиты</button></div>
+        <button data-op="dmg">Нанести урон</button><button data-op="heal">Вылечить</button><button class="ghost" data-op="temp">Временные хиты</button></div>
       ${c.hp <= 0 ? `<div>💀 Спасброски от смерти: ${(c.death || [0, 0])[0]} ✔ / ${(c.death || [0, 0])[1]} ✘ ${c.dead ? '☠️ мёртв' : ''}</div>` : ''}
       <h4>Состояния <span class="hint">— нажми, чтобы наложить или снять; наведи — что оно делает</span></h4><div class="chips">${Object.keys(S.conditions).map((n) => `<button class="chip ${(c.conds || []).includes(n) ? 'bad' : ''}" data-cond="${esc(n)}" title="${esc(S.conditions[n])}">${esc(n)}</button>`).join('')}</div>
-      <div class="row gap">Истощение <input id="st-exh" type="number" min="0" max="6" class="short" value="${c.exh || 0}"> ${c.conc ? `🧠 Концентрация: <b>${esc(c.conc)}</b> <button class="ghost sm" data-op="conc_drop">прервать</button>` : ''}</div>
+      <div class="row gap">Истощение <input id="st-exh" type="number" min="0" max="6" class="short" value="${c.exh || 0}"> ${c.conc ? `Концентрация: <b>${esc(c.conc)}</b> <button class="ghost sm" data-op="conc_drop">прервать</button>` : ''}</div>
       <h4>Эффекты заклинаний <span class="hint">— Благословение, Щит веры и т.п. сами меняют броски и КД</span></h4><div>${(c.effects || []).map((e) => `<div>✨ <b>${esc(e.n)}</b> ${e.rounds ? e.rounds + ' р.' : ''} <span class="hint">${esc(e.note || '')} ${e.src ? '· ' + esc(e.src) : ''}</span> <button class="ghost sm" data-rme="${e.id}">✕</button></div>`).join('') || '<p class="hint">Нет</p>'}</div>
       <div class="row gap"><select id="st-eff">${S.effects.map((n) => `<option>${esc(n)}</option>`).join('')}</select><input id="st-rounds" type="number" class="short" placeholder="раундов"><button id="st-addeff">＋ Эффект</button></div>
       ${d.res.length || Object.keys(d.slots).length || d.pact ? '<h4>Ресурсы</h4>' : ''}
@@ -620,7 +616,7 @@ function renderEditor() {
       ${Object.entries(d.slots).map(([k, s]) => `<div class="row gap">Ячейки ${k} <b>${s.left}/${s.max}</b><button class="ghost sm" data-slot="${k}:1">−</button><button class="ghost sm" data-slot="${k}:-1">+</button></div>`).join('')}
       ${d.pact ? `<div class="row gap">Договор <b>${d.pact.left}/${d.pact.max}</b><button class="ghost sm" data-slot="pact:1">−</button><button class="ghost sm" data-slot="pact:-1">+</button></div>` : ''}
       ${d.hd.length ? `<div class="hint">Кости хитов: ${d.hd.map((h) => `${h.die} ${h.left}/${h.max}`).join(', ')}</div>` : ''}
-      <h4>Отдых</h4><div class="row gap"><button data-op="rest_short">☕ Короткий отдых</button><button data-op="rest_long">🛌 Долгий отдых</button></div>`;
+      <h4>Отдых</h4><div class="row gap"><button data-op="rest_short">Короткий отдых</button><button data-op="rest_long">Долгий отдых</button></div>`;
   } else if (edTab === 'sheet') {
     b.innerHTML = `<div class="grid2">${[['name', 'Имя'], ['race', 'Раса'], ['bg', 'Предыстория'], ['al', 'Мировоззрение']].map(([k, t]) => `<label>${t}<input name="${k}" value="${esc(v(c[k]))}"></label>`).join('')}
       ${d.v2 ? `<label>Класс<input value="${esc(c.cls)}" disabled title="Классы меняются повышением уровня"></label>` : `<label>Класс<input name="cls" value="${esc(v(c.cls))}"></label><label>Уровень<input name="lvl" type="number" value="${c.lvl}"></label>`}

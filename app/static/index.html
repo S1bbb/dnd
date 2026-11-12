@@ -9,10 +9,11 @@
 </head>
 <body>
 <header>
-  <div class="brand">🐉 <b>Ширма мастера</b></div>
+  <div class="brand">Ширма мастера</div>
   <div class="hdr-info">
     <select id="game-sel" title="Активная игра"></select>
-    <button class="ghost sm" id="games-btn">🎲 Игры</button>
+    <button class="ghost sm" id="games-btn">Игры</button>
+    <button class="ghost sm" id="help-open">Справка</button>
     <span id="conn" class="pill off">нет связи</span>
     <a href="/logout" class="ghost btn sm">Выйти</a>
   </div>
@@ -22,109 +23,86 @@
   <section class="col players-col">
     <div class="lobby">
       <div class="lobby-top">
-        <div><div class="hint" data-help="По этому коду игроки находят твою игру в боте. «📋 Приглашение» копирует готовый текст — отправь его в чат игроков. 🔄 — новый код, если старый утёк (персонажи останутся).">Код лобби</div><div class="lobby-code" id="lobby-code">·····</div></div>
+        <div><div class="hint" data-help="По этому коду игроки находят твою игру в боте. «Приглашение» копирует готовый текст — отправь его в чат игроков. «Новый код» — если старый утёк; персонажи останутся.">Код лобби</div><div class="lobby-code" id="lobby-code">·····</div></div>
         <div class="lobby-btns">
-          <button class="ghost sm" id="lobby-copy">📋 Приглашение</button>
-          <button class="ghost sm" id="lobby-new" title="Старый код перестанет работать">🔄</button>
+          <button class="sm" id="lobby-copy">Приглашение</button>
+          <button class="ghost sm" id="lobby-new" title="Старый код перестанет работать">Новый код</button>
         </div>
       </div>
       <div class="hint" id="lobby-how"></div>
     </div>
-    <div id="fight-banner" class="fight hidden">⚔️ <b>Идёт бой.</b> Игроки объявляют действия и бросают. Ты решаешь, кто попал, и применяешь урон — кнопкой «🗡 Нанести» прямо под броском в ленте. Подсказка, что делать сейчас, — во вкладке «⚔️ Бой».</div>
+    <div id="fight-banner" class="fight hidden"><span class="grow">Идёт бой</span><button class="sm" id="fight-go">Открыть бой</button></div>
     <div id="start-here" class="card hidden">
-      <h3>👋 С чего начать</h3>
+      <h3>С чего начать</h3>
       <ol class="steps">
-        <li>Нажми <b>📋 Приглашение</b> выше и отправь его в чат игроков.</li>
-        <li>Игроки открывают бота, вводят код и собирают героев — они появятся здесь.</li>
-        <li>Нужна проверка — справа «Попросить бросок». Началась драка — вкладка <b>⚔️ Бой</b>.</li>
-        <li>Нажми на персонажа, чтобы открыть его лист: хиты, состояния, вещи, заклинания.</li>
+        <li>Нажми <b>Приглашение</b> и отправь текст в чат игроков.</li>
+        <li>Игроки вводят код в боте и собирают героев — они появятся здесь.</li>
+        <li>Нужна проверка — справа «Попросить проверку». Драка — вкладка <b>Бой</b>.</li>
       </ol>
     </div>
-    <div class="col-h"><h2 data-help="Герои этой игры. Нажми на имя — откроется лист. Урон и лечение: впиши число и нажми кнопку. Галочка «выбрать» — кому уйдёт проверка, сообщение или отдых (если никого не выбрал — всем).">Партия</h2><div class="row gap"><label class="sel-all"><input type="checkbox" id="sel-all"> все</label><button class="sm" id="new-char" title="Добавить персонажа вручную">＋ Персонаж</button></div></div>
+    <div class="col-h"><h2 data-help="Нажми на имя — откроется лист героя. Урон и лечение: впиши число и нажми кнопку. Галочка у имени — кому уйдёт проверка, сообщение или отдых. Если никого не отметил — всем.">Партия</h2><div class="row gap"><label class="sel-all"><input type="checkbox" id="sel-all"> все</label><button class="ghost sm" id="new-char" title="Добавить персонажа вручную">＋ Герой</button></div></div>
     <div id="drafts"></div>
     <div id="players"></div>
-    
   </section>
 
   <section class="col center-col">
     <div class="tabs" id="tabs">
-      <button data-t="feed" class="on">🗣 Сцена</button><button data-t="combat">⚔️ Бой</button><button data-t="map">🗺 Карта</button><button data-t="journal">📖 Журнал</button>
+      <button data-t="feed" class="on">Сцена</button><button data-t="combat">Бой</button><button data-t="map">Карта</button><button data-t="journal">Журнал</button>
     </div>
-    <div class="tab-hint" id="tab-hint"></div>
 
     <div class="tab" id="t-feed">
-      <details class="memo"><summary>📘 Словарик мастера (нажми)</summary>
-        <p><b>Проверка</b> — герой пытается что-то сделать: бросает d20 + бонус навыка. Если ≥ <b>СЛ</b> (сложности) — получилось.<br>
-        <b>Спасбросок</b> — герой пытается избежать беды (ловушка, яд, заклинание). Тоже d20 + бонус против СЛ.<br>
-        <b>КД</b> (класс доспеха) — насколько трудно попасть. Атака попала, если бросок ≥ КД цели.<br>
-        <b>Преимущество / помеха</b> — бросают два d20 и берут лучший / худший. Давай преимущество за хитрый план, помеху — за плохие условия.<br>
-        <b>Крит</b> — на d20 выпало 20: точно попал, кости урона удваиваются. <b>1</b> — промах.<br>
-        <b>Концентрация</b> — некоторые заклинания держатся, пока маг сосредоточен. Получил урон — спасбросок Телосложения, иначе заклинание спадает.<br>
-        <b>0 хитов</b> — герой без сознания и в свой ход бросает спасброски от смерти (бот сделает это сам).</p></details>
-      <details class="memo"><summary>💡 Памятка: сложность проверок</summary>
-        <p><b>СЛ</b>: 5 очень легко · 10 легко · 15 средне · 20 трудно · 25 очень трудно · 30 почти невозможно.
-        Преимущество — два d20, берётся лучший; помеха — худший; вместе отменяют друг друга.
-        Пассивная проверка = 10 + бонус (для «замечает ли он засаду»). Укрытие: половинное +2 КД, на ¾ +5.</p></details>
-      <div class="card" id="req-card"><div class="row gap"><h3 class="grow" data-help="Проверки, которые ты попросил бросить. ⏳ — игрок ещё не бросил (✕ — отменить), число — результат, ✅/❌ — прошёл ли СЛ.">🎯 Запросы</h3><button class="ghost sm" id="req-toggle">свернуть</button></div><div id="requests"></div></div>
-      <div class="col-h"><h3 data-help="Все броски игроков и твои — в реальном времени, новые сверху. Под атакой есть «🗡 Нанести урон»: нажми и выбери, по кому. «Компактно» — короче, нажми на бросок, чтобы раскрыть.">Лента</h3><div class="row gap"><button class="ghost sm" id="feed-fold">▤ компактно</button><button class="ghost sm" id="clear">Очистить</button></div></div>
+      <div class="card" id="req-card"><div class="row gap"><h3 class="grow" data-help="Проверки, которые ты попросил бросить. «ждём» — игрок ещё не бросил (✕ — отменить), число — результат, ✅/❌ — прошёл ли СЛ.">Запросы</h3><button class="ghost sm" id="req-toggle">свернуть</button></div><div id="requests"></div></div>
+      <div class="col-h"><h3 data-help="Броски игроков и твои, новые сверху. Под атакой есть «Нанести урон»: нажми и выбери, по кому.">Лента</h3><div class="row gap"><button class="ghost sm" id="feed-fold">компактно</button><button class="ghost sm" id="clear">Очистить</button></div></div>
       <div id="feed"></div>
     </div>
 
     <div class="tab hidden" id="t-combat">
-      <details class="memo"><summary>💡 Памятка: как вести бой</summary>
-        <p>1) «Начать бой» — игрокам уйдёт запрос инициативы, их броски встанут в очередь сами. 2) Добавь противников (шаблоны или свои).
-        3) «Следующий ход» — игрок получит уведомление «Твой ход», эффекты с длительностью тикают. В свой ход существо: движение + действие
-        (атака, заклинание, рывок, отход, уклонение, помощь, засада) + бонусное действие (если есть) + реакция до своего следующего хода.
-        Атака: d20 + бонус ≥ КД — попадание, 20 — крит (кости урона ×2). 0 хитов у игрока — спасброски от смерти.</p></details>
+      <div class="row gap cb-head"><b id="cb-round" class="grow"></b><button class="ghost sm danger" id="cb-end">Закончить бой</button></div>
       <div class="row gap wrap">
-        <button class="primary auto" id="cb-start">⚔️ Начать бой</button>
-        <button id="cb-next">Следующий ход ▶</button>
-        <button class="ghost" id="cb-party" title="Добавить в бой героев, которых ещё нет в списке">👥 Партия в бой</button>
-        <span class="row" id="cb-ask-w"><button class="ghost" id="cb-ask" data-help="Инициатива решает, кто ходит первым. Каждый игрок бросает d20 + Ловкость, очередь выстраивается сама. «Начать бой» уже просит её — эта кнопка нужна, если кто-то не бросил или присоединился позже. Можно и вписать число вручную в поле «?» слева от имени.">Запросить инициативу</button></span>
-        <button class="ghost danger" id="cb-end">Закончить</button>
-        <span class="grow"></span><b id="cb-round"></b>
+        <button class="primary auto" id="cb-start">Начать бой</button>
+        <button class="primary auto" id="cb-next">Следующий ход</button>
+        <button class="ghost sm" id="cb-party" title="Добавить в бой героев, которых ещё нет в списке">Партия в бой</button>
+        <span class="row" id="cb-ask-w"><button class="ghost sm" id="cb-ask" data-help="Инициатива решает, кто ходит первым: каждый бросает d20 + Ловкость, очередь выстраивается сама. «Начать бой» уже просит её. Эта кнопка — если кто-то не бросил или присоединился позже. Число можно вписать и вручную в поле слева от имени.">Запросить инициативу</button></span>
       </div>
       <div id="cb-guide" class="guide"></div>
       <div id="cb-list"></div>
-      <h3 class="mt">Последние броски <span class="hint">— урон применяй отсюда</span></h3>
-      <div id="cb-feed" class="feedbox"></div>
       <div class="card">
-        <h3 data-help="Выбери шаблон (например «Гоблин») — хиты, КД и атаки подставятся сами, инициатива бросится сразу. Или оставь «— свой —» и впиши числа. «Скрыт» — игроки пока не знают о нём.">Добавить противника</h3>
+        <h3 data-help="Выбери шаблон (например «Гоблин») — хиты, КД и атаки подставятся, инициатива бросится сразу. Или оставь «— свой —» и впиши числа. «Скрыт» — игроки пока не знают о нём.">Добавить противника</h3>
         <div class="row gap wrap"><select id="npc-tpl"></select><input id="npc-name" placeholder="Имя (необязательно)"><input id="npc-count" type="number" value="1" min="1" max="20" class="short" title="Сколько"><label class="sel-all"><input type="checkbox" id="npc-hidden"> скрыт</label></div>
-        <div class="row gap wrap"><input id="npc-hp" type="number" placeholder="Хиты" class="short"><input id="npc-ac" type="number" placeholder="КД" class="short"><input id="npc-ib" type="number" placeholder="Иниц." class="short"><button id="npc-add">＋ Добавить</button></div>
-        <div class="hint">Выбери шаблон — хиты, КД и атаки подставятся. Или впиши своё и оставь шаблон «— свой —».</div>
+        <div class="row gap wrap"><input id="npc-hp" type="number" placeholder="Хиты" class="short"><input id="npc-ac" type="number" placeholder="КД" class="short"><input id="npc-ib" type="number" placeholder="Иниц." class="short"><button id="npc-add">Добавить</button></div>
       </div>
+      <h3 class="mt">Последние броски</h3>
+      <div id="cb-feed" class="feedbox"></div>
     </div>
-
     <div class="tab hidden" id="t-map">
       <div class="row gap wrap" id="map-top">
         <select id="sc-sel" class="grow"></select><button class="ghost sm" id="sc-new">＋ Сцена</button><button class="ghost sm" id="sc-ren" title="Переименовать">✎</button><button class="ghost sm danger" id="sc-del" title="Удалить сцену">🗑</button>
-        <button class="ghost sm" id="map-wide" title="Спрятать боковые колонки, чтобы карта была крупнее">⛶ Шире</button>
-        <button class="ghost sm" id="sc-show" data-help="Пока карта скрыта, игроки её не видят — готовь спокойно. Когда покажешь, бот пришлёт им картинку с кнопками движения (в бою — только в их ход и не дальше скорости). Клетки под туманом и фишки в них игроки не видят.">🙈 Игроки не видят</button>
+        <button class="ghost sm" id="map-wide" title="Спрятать боковые колонки, чтобы карта была крупнее">Шире</button>
+        <button class="ghost sm" id="sc-show" data-help="Пока карта скрыта, игроки её не видят — готовь спокойно. Когда покажешь, бот пришлёт им картинку с кнопками движения (в бою — только в их ход и не дальше скорости). Клетки под туманом и фишки в них игроки не видят.">Скрыта от игроков</button>
       </div>
 
       <div id="map-empty" class="card map-empty">
-        <h3>🗺 Карта пока не создана</h3>
+        <h3>Карты пока нет</h3>
         <p class="hint">Карта необязательна — играть можно и без неё. Нужна, когда важно, кто где стоит: бой, засада, лабиринт.</p>
-        <div class="row gap wrap"><button class="primary auto" id="sc-new2">＋ Создать карту</button><span class="hint">потом можно загрузить картинку местности</span></div>
+        <div class="row gap wrap"><button class="primary auto" id="sc-new2">Создать карту</button><span class="hint">потом можно загрузить картинку местности</span></div>
       </div>
 
       <div id="map-ui">
         <div class="map-bar">
           <div class="seg" id="brush">
-            <button data-b="move" class="on" title="Тащи фишки мышью, нажми на фишку — настройки">✋ Двигать</button><button data-b="ruler" title="Тяни от клетки к клетке — покажет расстояние">📏 Линейка</button><button data-b="hide" title="Закрашивай клетки, которые игроки не должны видеть">🌫 Скрыть</button><button data-b="show" title="Открывай клетки, куда пришли герои">☀️ Открыть</button>
+            <button data-b="move" class="on" title="Тащи фишки мышью, нажми на фишку — настройки">Двигать</button><button data-b="ruler" title="Тяни от клетки к клетке — покажет расстояние">Линейка</button><button data-b="hide" title="Закрашивай клетки, которые игроки не должны видеть">Туман</button><button data-b="show" title="Открывай клетки, куда пришли герои">Открыть</button>
           </div>
-          <div class="row gap wrap" id="fog-tools"><button class="ghost sm" id="sc-fogall">🌫 Скрыть всё</button><button class="ghost sm" id="sc-clearfog">☀️ Открыть всё</button><label class="sel-all"><input type="checkbox" id="sc-fog"> туман включён</label></div>
+          <div class="row gap wrap" id="fog-tools"><button class="ghost sm" id="sc-fogall">Скрыть всё</button><button class="ghost sm" id="sc-clearfog">Открыть всё</button><label class="sel-all"><input type="checkbox" id="sc-fog"> туман включён</label></div>
         </div>
         <div class="row gap wrap">
           <span class="hint">Добавить:</span>
-          <button class="ghost sm" id="sc-party">👥 Партию</button><button class="ghost sm" id="sc-cbtok">⚔️ Противников из боя</button><button class="ghost sm" id="sc-tok">＋ Фишку</button>
-          <label class="btn ghost sm">🖼 Картинку местности<input type="file" id="sc-img" accept="image/*" hidden></label>
+          <button class="ghost sm" id="sc-party">Партию</button><button class="ghost sm" id="sc-cbtok">Противников из боя</button><button class="ghost sm" id="sc-tok">Фишку</button>
+          <label class="btn ghost sm">Картинку местности<input type="file" id="sc-img" accept="image/*" hidden></label>
         </div>
         <div class="map-wrap"><canvas id="map"></canvas></div>
         <div class="map-hint" id="map-hint"></div>
         <div id="tok-panel" class="tok-panel hidden"></div>
-        <details class="memo" id="grid-box"><summary>⚙️ Сетка: подогнать клетки под картинку</summary>
+        <details class="memo" id="grid-box"><summary>Сетка: подогнать клетки под картинку</summary>
           <div class="row gap wrap map-tools">
             <label>Размер клетки <button class="ghost sm" data-g="-2">−</button><input type="number" id="sc-grid" class="short" min="10" max="300"><button class="ghost sm" data-g="2">＋</button></label>
             <label>Сдвиг ↔ <input type="number" id="sc-ox" class="short"></label><label>↕ <input type="number" id="sc-oy" class="short"></label>
@@ -137,15 +115,11 @@
     </div>
 
     <div class="tab hidden" id="t-journal">
-      <details class="memo"><summary>💡 Памятка: журнал</summary>
-        <p>Механика (урон, отдых, уровни, бои) пишется сама — категория «Механика». Сюжет, задания, НИП, места и итоги сессий веди сам.
-        🔒 — видит только мастер, 👁 — открыто игрокам (они получат уведомление и увидят в /journal). Правки сохраняют историю, удалённое можно вернуть.
-        Текст записи не влияет на расчёты персонажей.</p></details>
       <div class="row gap wrap">
-        <input id="j-q" placeholder="🔍 поиск" class="grow">
+        <input id="j-q" placeholder="Поиск" class="grow">
         <select id="j-cat"><option value="">Все</option></select>
         <label class="sel-all"><input type="checkbox" id="j-del"> удалённые</label>
-        <button id="j-new">＋ Запись</button><button class="ghost" id="j-session">▶ Начать сессию</button>
+        <button id="j-new">＋ Запись</button><button class="ghost" id="j-session">Начать сессию</button>
       </div>
       <div id="j-list"></div>
     </div>
@@ -153,8 +127,8 @@
 
   <section class="col tools-col">
     <div class="card">
-      <h3 data-help="Игроку в боте придёт кнопка «Бросить» — бот сам посчитает бонусы. Выбери ситуацию и сложность (СЛ). Пример: «Заметить засаду», Средне 15. Итог появится в ленте с ✅ или ❌.">🎯 Попросить проверку</h3>
-      <div class="lbl">1. Что пытаются сделать герои?</div>
+      <h3 data-help="Игроку в боте придёт кнопка «Бросить», бот сам посчитает бонусы. Итог появится в ленте с ✅ или ❌.">Попросить проверку</h3>
+      <div class="lbl">1. Что пытаются сделать?</div>
       <select id="ask-sit"></select>
       <div id="ask-custom" class="hidden">
         <div class="seg" id="ask-kind">
@@ -167,21 +141,19 @@
         </select>
         <input id="ask-formula" class="hidden" placeholder="например 2d6+3">
       </div>
-      <div class="lbl">2. Насколько это сложно?</div>
+      <div class="lbl">2. Насколько сложно?</div>
       <div class="seg" id="ask-dc"><button data-dc="10">Легко 10</button><button data-dc="15" class="on">Средне 15</button><button data-dc="20">Трудно 20</button><button data-dc="25">Очень 25</button><button data-dc="">Без СЛ</button></div>
-      <div class="lbl">3. Кто бросает? <span class="hint" id="ask-target">Все игроки</span></div>
+      <div class="lbl">3. Кто бросает? <span class="hint" id="ask-target">все игроки</span></div>
       <input id="ask-title" placeholder="Подпись для игроков (необязательно)">
-      <label class="sel-all"><input type="checkbox" id="ask-secret"> 🤫 тайно — игрок не увидит, получилось ли</label>
-      <button class="primary" id="ask-go">🎯 Попросить бросок</button>
-      <div class="hint">Игроку придёт карточка «Бросить». Итог появится в ленте с ✅ успех или ❌ провал.</div>
+      <label class="sel-all"><input type="checkbox" id="ask-secret"> тайно — игрок не узнает, получилось ли</label>
+      <button class="primary" id="ask-go">Попросить бросок</button>
     </div>
     <div class="card">
-      <h3 data-help="Отдых объявляет мастер. Короткий — после боя, если есть час. Долгий — ночёвка, раз в сутки. Без выбранных героев отдыхает вся партия.">🏕 Отдых партии</h3>
-      <div class="hint">Отдых объявляешь ты. ☕ <b>Короткий</b> — час передышки: вернутся умения «до короткого отдыха», игроки смогут подлечиться костями хитов. 🛌 <b>Долгий</b> — ночь сна: восстановится всё.</div>
-      <div class="row gap"><button id="rest-short">☕ Короткий</button><button id="rest-long">🛌 Долгий</button></div>
+      <h3 data-help="Короткий (час передышки) — вернутся умения «до короткого отдыха», игроки смогут подлечиться костями хитов. Долгий (ночь сна) — восстановится всё. Без отмеченных героев отдыхает вся партия.">Отдых партии</h3>
+      <div class="row gap"><button class="grow" id="rest-short">Короткий</button><button class="grow" id="rest-long">Долгий</button></div>
     </div>
     <div class="card">
-      <h3 data-help="Тайный бросок за монстров и мир — игроки его не видят. Например, проверка Скрытности гоблина или «есть ли в таверне свободная комната» на d6.">🎲 Бросок мастера</h3>
+      <h3 data-help="Тайный бросок за монстров и мир — игроки его не видят.">Бросок мастера</h3>
       <div class="dice-row" id="gm-dice"></div>
       <div class="row gap"><input id="gm-formula" placeholder="1d20+5" value="1d20"><input id="gm-title" placeholder="Что бросаем"></div>
       <div class="seg" id="gm-adv"><button data-a="0" class="on">Обычно</button><button data-a="1">Преимущ.</button><button data-a="-1">Помеха</button></div>
@@ -189,17 +161,17 @@
       <div id="gm-result" class="gm-result"></div>
     </div>
     <div class="card">
-      <h3 data-help="Текст придёт игрокам в бот. Удобно для того, что видит только один герой: шёпот, видение, записка. Без выбранных — получат все.">📜 Сообщение игрокам</h3>
+      <h3 data-help="Текст придёт игрокам в бот: шёпот, видение, записка. Без отмеченных героев — всем.">Сообщение игрокам</h3>
       <textarea id="msg-text" rows="3" placeholder="Вы слышите шорох за дверью…"></textarea>
-      <button id="msg-go">Отправить выбранным</button>
+      <button id="msg-go">Отправить</button>
     </div>
   </section>
 </main>
 
 <dialog id="games-dlg">
-  <div class="row gap"><h3 class="grow">🎲 Игры</h3><button class="ghost sm" data-close>✕</button></div>
+  <div class="row gap"><h3 class="grow">Игры</h3><button class="ghost sm" data-close>✕</button></div>
   <div id="games-list"></div>
-  <div class="row gap"><input id="game-name" placeholder="Название новой игры"><button id="game-create">＋ Создать</button></div>
+  <div class="row gap"><input id="game-name" placeholder="Название новой игры"><button id="game-create">Создать</button></div>
   <p class="hint">У каждой игры своя партия, лобби-код, бой, сцены и журнал. Архивная игра доступна только для чтения; «Продолжить» вернёт её.</p>
 </dialog>
 
@@ -207,17 +179,17 @@
   <div class="row gap"><h3 class="grow">Новый персонаж</h3><button class="ghost sm" data-close>✕</button></div>
   <p class="hint">Лучше всего игроки собирают героя сами в боте — по коду лобби. Здесь можно быстро добавить готового героя или пустой лист.</p>
   <div class="row gap"><select id="newc-pregen"></select><input id="newc-name" placeholder="Имя (необязательно)"></div>
-  <div class="row gap"><button class="primary auto" id="newc-pg">⚡ Создать готового</button><button class="ghost" id="newc-blank">Пустой лист (всё вручную)</button></div>
+  <div class="row gap"><button class="primary auto" id="newc-pg">Создать готового</button><button class="ghost" id="newc-blank">Пустой лист (всё вручную)</button></div>
 </dialog>
 
 <dialog id="editor" class="wide">
   <div class="row gap"><h3 class="grow" id="ed-title">Персонаж</h3><button class="ghost sm" data-close>✕</button></div>
   <div class="row gap wrap ed-actions">
-    <button class="ghost sm" id="ed-lvl">📈 Дать уровень</button><button class="ghost sm" id="ed-send">📨 Прислать игроку лист</button><button class="ghost sm" id="ed-link-btn">🔗 Ссылка для игрока</button>
+    <button class="ghost sm" id="ed-lvl">Дать уровень</button><button class="ghost sm" id="ed-send">Прислать лист игроку</button><button class="ghost sm" id="ed-link-btn">Ссылка для игрока</button>
   </div>
   <div id="ed-link" class="linkbox hidden"></div>
   <div class="tabs small" id="ed-tabs">
-    <button data-t="state" class="on">❤️ Хиты и состояние</button><button data-t="sum">📊 Все числа</button><button data-t="items">🎒 Вещи</button><button data-t="spells">✨ Заклинания</button><button data-t="sheet">✎ Править лист</button><button data-t="adj">± Бонусы мастера</button><button data-t="hist">↩️ История</button>
+    <button data-t="state" class="on">Хиты и состояние</button><button data-t="sum">Все числа</button><button data-t="items">Вещи</button><button data-t="spells">Заклинания</button><button data-t="sheet">Править лист</button><button data-t="adj">Бонусы мастера</button><button data-t="hist">История</button>
   </div>
   <div id="ed-body"></div>
 </dialog>
@@ -239,6 +211,32 @@
   <div class="row gap end ed-foot">
     <button class="ghost danger" id="en-del">Удалить</button><span class="grow"></span>
     <button class="primary auto" id="en-save">Сохранить</button>
+  </div>
+</dialog>
+
+
+<dialog id="help-dlg" class="wide">
+  <div class="row gap"><h3 class="grow">Справка мастера</h3><button class="ghost sm" data-close>✕</button></div>
+  <div class="help-doc">
+    <h4>Слова</h4>
+    <p><b>Проверка</b> — герой пытается что-то сделать: d20 + бонус навыка. Если ≥ <b>СЛ</b> (сложности) — получилось.<br>
+    <b>Спасбросок</b> — герой пытается избежать беды (ловушка, яд, заклинание): d20 + бонус против СЛ.<br>
+    <b>КД</b> (класс доспеха) — насколько трудно попасть. Атака попала, если бросок ≥ КД цели.<br>
+    <b>Преимущество / помеха</b> — два d20, берётся лучший / худший. Вместе отменяют друг друга.<br>
+    <b>Крит</b> — на d20 выпало 20: точно попал, кости урона удваиваются. <b>1</b> — промах.<br>
+    <b>Концентрация</b> — некоторые заклинания держатся, пока маг сосредоточен. Получил урон — спасбросок Телосложения.<br>
+    <b>0 хитов</b> — герой без сознания и бросает спасброски от смерти (бот делает это сам).</p>
+    <h4>Сложность</h4>
+    <p>5 очень легко · 10 легко · 15 средне · 20 трудно · 25 очень трудно · 30 почти невозможно.
+    Пассивная проверка = 10 + бонус (заметит ли засаду). Укрытие: половинное +2 КД, на ¾ +5.</p>
+    <h4>Бой</h4>
+    <p>«Начать бой» — игрокам уйдёт запрос инициативы, очередь выстроится сама. Добавь противников. «Следующий ход» — игрок получит «Твой ход».
+    В свой ход существо: движение + действие (атака, заклинание, рывок, отход, уклонение, помощь, засада) + бонусное действие + реакция до своего следующего хода.</p>
+    <h4>Карта</h4>
+    <p>Необязательна. Создай карту, загрузи картинку местности или работай на пустой сетке. Двигай фишки мышью, нажми на фишку — настройки.
+    «Туман» прячет клетки от игроков. Когда готово — «Скрыта от игроков» → карта уйдёт им в бот с кнопками движения.</p>
+    <h4>Журнал</h4>
+    <p>Урон, отдых, уровни и бои пишутся сами. Сюжет, задания, НИП и итоги сессий веди сам. 🔒 — видит только мастер, 👁 — игроки получат уведомление.</p>
   </div>
 </dialog>
 
