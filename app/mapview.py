@@ -16,7 +16,7 @@ COLORS = ["#e3b45c", "#5cbf6a", "#6fa8dc", "#c77dff", "#ff8fab", "#4dd4c6", "#f4
 
 
 def default_scene() -> dict:
-    return {"img": None, "w": 1200, "h": 800, "grid": 50, "ox": 0, "oy": 0, "cols": 24, "rows": 16,
+    return {"img": None, "w": 1200, "h": 800, "grid": 50, "ox": 0, "oy": 0, "cols": 16, "rows": 10,
             "fog_on": False, "fog": [], "tokens": [], "show": False, "ft": 5}
 
 

@@ -289,3 +289,39 @@ dialog.wide { width: min(860px, calc(100vw - 32px)); }
 .ap .heal-b, .ap-tg.pc { }
 .ap-tg.npc { border-color: #6a2c25; }
 .ap .ap-n { width: 70px; }
+
+/* подсказки «?» */
+.help-btn {
+  width: 20px; height: 20px; padding: 0; margin-left: 6px; border-radius: 50%; vertical-align: middle;
+  font: 700 12px/18px system-ui, sans-serif; color: var(--hint); background: transparent; border: 1px solid var(--line);
+  display: inline-flex; align-items: center; justify-content: center; flex: none; letter-spacing: 0;
+}
+.help-btn:hover, .help-btn.on { color: #1b1208; background: var(--gold2); border-color: var(--gold2); }
+.help-pop {
+  background: #2b2116; border-left: 3px solid var(--gold2); border-radius: 8px; padding: 8px 12px;
+  font: 13px/1.5 system-ui, sans-serif; color: var(--text); margin: 6px 0 4px; width: 100%;
+}
+
+/* карта */
+.map-empty { align-items: flex-start; }
+.map-empty p { margin: 0; }
+.map-bar { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; }
+.map-bar #brush { flex: 0 1 auto; }
+.map-bar #brush button { flex: none; padding: 6px 12px; }
+#sc-show.live { background: #23401f; border-color: #335d2d; color: #b5e7aa; }
+#sc-sel.grow { width: auto; min-width: 140px; }
+.map-hint { font-size: 13px; color: var(--hint); }
+#map[data-brush=ruler] { cursor: crosshair; }
+#map[data-brush=move], #map:not([data-brush]) { cursor: grab; }
+#map[data-brush=hide], #map[data-brush=show] { cursor: cell; }
+.tok-panel { background: var(--panel); border: 1px solid var(--gold2); border-radius: var(--r); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.tok-panel .tk-name { width: 180px; flex: none; }
+.tok-panel .tk-size { flex: none; }
+.tok-panel .tk-size button { flex: none; padding: 4px 8px; }
+.tk-colors { display: flex; gap: 4px; }
+.tk-colors button { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid transparent; }
+.tk-colors button.on { border-color: var(--text); }
+#grid-box .map-tools { margin-top: 8px; }
+#grid-box .map-tools button { padding: 2px 8px; }
+body.map-wide .players-col, body.map-wide .tools-col { display: none; }
+body.map-wide main { grid-template-columns: 1fr; max-width: 1400px; }

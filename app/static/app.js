@@ -32,6 +32,17 @@ const G = (p) => `/api/g/${S.gid}${p}`;
 async function copy(text, okMsg) { try { await navigator.clipboard.writeText(text); toast(okMsg); } catch (e) { prompt('Скопируй:', text); } }
 $$('dialog [data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
 
+/* ---------- подсказки «?» ---------- */
+$$('[data-help]').forEach((el) => {
+  const q = document.createElement('button');
+  q.type = 'button'; q.className = 'help-btn'; q.textContent = '?'; q.title = 'Что это?'; q.setAttribute('aria-label', 'Что это?');
+  const pop = document.createElement('div');
+  pop.className = 'help-pop hidden'; pop.textContent = el.dataset.help;
+  if (el.tagName === 'BUTTON') el.after(q); else el.append(q);
+  (el.closest('.col-h, .lobby-top, .tab > div.row, .card > .row') || el).after(pop);
+  q.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.toggle('hidden'); q.classList.toggle('on', !pop.classList.contains('hidden')); });
+});
+
 /* ---------- игры ---------- */
 function renderGames() {
   $('#game-sel').innerHTML = S.games.filter((g) => g.status === 'active' || g.id === S.gid)
@@ -143,6 +154,7 @@ function tab(name) {
   store('tab', name);
   if (name === 'journal') loadJournal();
   if (name === 'map') drawMap();
+  if (name === 'map') mapWide(load('mapWide', false)); else document.body.classList.remove('map-wide');
 }
 $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) tab(b.dataset.t); });
 
@@ -277,12 +289,15 @@ function renderCombat() {
   const cb = S.combat || { on: false, list: [], round: 0, turn: -1 };
   $('#cb-round').textContent = cb.on ? `Раунд ${cb.round}` : 'Бой не идёт';
   $('#cb-start').classList.toggle('hidden', cb.on);
-  $('#cb-next').classList.toggle('hidden', !cb.on); $('#cb-end').classList.toggle('hidden', !cb.on); $('#cb-ask').classList.toggle('hidden', !cb.on);
+  $('#cb-next').classList.toggle('hidden', !cb.on); $('#cb-end').classList.toggle('hidden', !cb.on); $('#cb-ask-w').classList.toggle('hidden', !cb.on);
+  const missing = S.chars.filter((c) => !cb.list.some((x) => x.cid === c.id));
+  $('#cb-party').classList.toggle('hidden', !missing.length || (!cb.on && missing.every((c) => c.tg_id)));
+  $('#cb-party').textContent = `👥 Партия в бой (${missing.length})`;
   const cur = cb.on ? cb.list[cb.turn] : null;
   const npcs = cb.list.filter((x) => x.kind === 'npc').length;
   let g;
   if (!cb.on) g = `<b>Как начать бой:</b><ol><li>Добавь противников в блоке ниже (${npcs ? '✓ добавлено: ' + npcs : 'шаблон, например «Гоблин», и сколько'}).</li>
-    <li>Нажми <b>⚔️ Начать бой</b> — игрокам придёт запрос инициативы, очередь выстроится сама.</li><li>Дальше просто жми <b>Следующий ход</b> и следуй подсказкам здесь.</li></ol>`;
+    <li>Нажми <b>⚔️ Начать бой</b> — герои игроков встанут в очередь сами, им придёт запрос инициативы.</li><li>Дальше просто жми <b>Следующий ход</b> и следуй подсказкам здесь.</li></ol>`;
   else if (!cur) g = '<b>Бой начался.</b> Ждём бросков инициативы от игроков (у кого «?» — ещё не бросил; можно вписать вручную). Затем жми <b>Следующий ход ▶</b>.';
   else if (cur.kind === 'npc') g = `<b>Ходит 👹 ${esc(cur.name)}</b>. Опиши, что он делает, и брось атаку: ${(cur.atk || []).map((a, j) => `<button class="sm g-atk" data-id="${cur.id}" data-i="${j}">⚔️ ${esc(a[0])}</button>`).join(' ') || '(атак нет — впиши урон вручную у цели)'}
     <br><span class="hint">Бросок ≥ КД героя — попал. Под броском появится «🗡 Нанести урон» — выбери, по кому. Затем <b>Следующий ход ▶</b>.</span>`;
@@ -304,12 +319,18 @@ function renderCombat() {
       <div class="cb-hp"><span>${hp}/${mx}</span><input class="hp-in" type="number" placeholder="±"><button class="dmg">🗡</button><button class="heal">✚</button></div>
       <div class="col-btns">${x.kind === 'npc' ? `<button class="ghost sm cond" title="Состояние">🩹</button><button class="ghost sm hide" title="Скрыть/показать">${x.hidden ? '👁' : '🙈'}</button>` : '<button class="ghost sm edit" title="Хиты, состояния, эффекты">🩹 Лист</button>'}<button class="ghost sm rm" title="Убрать">✕</button></div>
     </div>`;
-  }).join('') : '<p class="hint">Участников пока нет. «Начать бой» добавит партию; противников — ниже.</p>';
+  }).join('') : '<p class="hint">Участников пока нет. «Начать бой» добавит героев игроков, «👥 Партия в бой» — всех героев сразу; противников — ниже.</p>';
 }
 async function cbOp(op, extra = {}) { const r = await api(G('/combat'), { op, ...extra }); if (r.combat) { S.combat = r.combat; renderCombat(); } return r; }
 $('#cb-start').addEventListener('click', () => cbOp('start'));
 $('#cb-guide').addEventListener('click', async (e) => { const b = e.target.closest('.g-atk'); if (!b) return; const r = await cbOp('npc_roll', { eid: b.dataset.id, i: +b.dataset.i }); toast(`🎲 ${r.total}` + (r.detail.d ? ` · урон ${r.detail.d.t}` : '')); });
 $('#cb-next').addEventListener('click', async () => { const r = await cbOp('next'); const c = r.combat.list[r.combat.turn]; if (c) toast('Ход: ' + c.name); });
+$('#cb-party').addEventListener('click', async () => {
+  const cb = S.combat || { list: [] };
+  const missing = S.chars.filter((c) => !cb.list.some((x) => x.cid === c.id));
+  for (const c of missing) await cbOp('add_pc', { cid: c.id });
+  toast(`👥 В бой: ${missing.map((c) => c.char.name).join(', ')}` + (cb.on ? ' — впиши инициативу или нажми «Запросить инициативу»' : ''));
+});
 $('#cb-ask').addEventListener('click', () => cbOp('ask_init').then(() => toast('⚔️ Инициатива запрошена')));
 $('#cb-end').addEventListener('click', () => { if (confirm('Закончить бой? Противники уйдут из списка.')) cbOp('end'); });
 $('#cb-list').addEventListener('change', (e) => { if (e.target.classList.contains('ini')) cbOp('init', { eid: e.target.closest('.cb-row').dataset.id, value: +e.target.value || 0 }); });
@@ -339,14 +360,31 @@ $('#npc-add').addEventListener('click', () => {
 });
 
 /* ---------- карта ---------- */
-const MAP = { brush: 'move', drag: null, ruler: null, img: null, imgId: null, scale: 1, saveT: null };
+const MAP = { brush: 'move', drag: null, ruler: null, img: null, imgId: null, saveT: null, sel: null, moved: false };
+const BRUSH_HINT = {
+  move: '✋ Тащи фишку мышью. Нажми на фишку — переименовать, сменить размер, спрятать или убрать.',
+  ruler: '📏 Тяни от одной клетки к другой — покажет расстояние в футах. Можно и в режиме «Двигать» с зажатым Shift.',
+  hide: '🌫 Води по клеткам — они скроются от игроков. Удобно: «Скрыть всё», а потом открывать по мере исследования.',
+  show: '☀️ Води по клеткам — игроки их увидят.',
+};
 function sceneObj() { return S.scene; }
 function renderScenes() {
-  $('#sc-sel').innerHTML = '<option value="0">— нет сцены —</option>' + S.scenes.map((s) => `<option value="${s.id}" ${S.scene && S.scene.id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
   const sc = sceneObj();
-  for (const k of ['grid', 'ox', 'oy', 'cols', 'rows']) $('#sc-' + k).value = sc ? sc[k] : '';
-  $('#sc-fog').checked = !!(sc && sc.fog_on); $('#sc-show').checked = !!(sc && sc.show);
-  $('#map-info').textContent = sc ? `«${sc.name}»: ${sc.tokens.length} фишек${sc.show ? ' · видна игрокам' : ' · скрыта от игроков'}` : 'Создай сцену, чтобы начать.';
+  $('#sc-sel').innerHTML = (sc ? '' : '<option value="0">— выбери карту —</option>') + S.scenes.map((s) => `<option value="${s.id}" ${sc && sc.id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+  $('#sc-sel').classList.toggle('hidden', !S.scenes.length);
+  $('#map-empty').classList.toggle('hidden', !!sc);
+  $('#map-ui').classList.toggle('hidden', !sc);
+  $('#map-top').classList.toggle('hidden', !sc); if (!sc) $('#map-top').nextElementSibling.classList.add('hidden');
+  if (!sc) return;
+  for (const k of ['grid', 'ox', 'oy', 'cols', 'rows']) $('#sc-' + k).value = sc[k];
+  $('#sc-size').classList.toggle('hidden', !!sc.img);
+  $('#sc-fog').checked = !!sc.fog_on;
+  $('#sc-show').textContent = sc.show ? '👁 Игроки видят карту' : '🙈 Игроки не видят';
+  $('#sc-show').classList.toggle('live', !!sc.show);
+  $('#fog-tools').classList.toggle('hidden', !['hide', 'show'].includes(MAP.brush) && !sc.fog_on);
+  $('#map-hint').textContent = BRUSH_HINT[MAP.brush];
+  $('#map-info').textContent = `Фишек: ${sc.tokens.length}` + (sc.fog_on ? ` · под туманом клеток: ${sc.fog.length}` : '');
+  renderTokPanel();
 }
 function saveScene(extra = {}, now = false) {
   const sc = sceneObj(); if (!sc) return;
@@ -356,30 +394,75 @@ function saveScene(extra = {}, now = false) {
   if (now) return go();
   MAP.saveT = setTimeout(go, 500);
 }
-$('#sc-sel').addEventListener('change', async (e) => { await api(G(`/scene/${+e.target.value}/current`)); });
-$('#sc-new').addEventListener('click', async () => { const n = prompt('Название сцены', 'Сцена ' + (S.scenes.length + 1)); if (!n) return; await api(G('/scene'), { name: n, current: true, party: true }); await loadScenes(); });
+async function newScene() { const n = prompt('Название карты', S.scenes.length ? 'Карта ' + (S.scenes.length + 1) : 'Подземелье'); if (!n) return; await api(G('/scene'), { name: n, current: true, party: true }); await loadScenes(); toast('🗺 Карта создана, герои уже на ней'); }
+$('#sc-sel').addEventListener('change', async (e) => { if (+e.target.value) await api(G(`/scene/${+e.target.value}/current`)); });
+$('#sc-new').addEventListener('click', newScene);
+function mapWide(on) { document.body.classList.toggle('map-wide', on); $('#map-wide').textContent = on ? '⇲ Обычный вид' : '⛶ Шире'; store('mapWide', on); }
+$('#map-wide').addEventListener('click', () => mapWide(!document.body.classList.contains('map-wide')));
+$('#sc-new2').addEventListener('click', newScene);
 $('#sc-ren').addEventListener('click', () => { const sc = sceneObj(); if (!sc) return; const n = prompt('Название', sc.name); if (n) { sc.name = n; saveScene({}, true).then(loadScenes); } });
-$('#sc-del').addEventListener('click', async () => { const sc = sceneObj(); if (sc && confirm('Удалить сцену?')) { await api(G(`/scene/${sc.id}`), null, 'DELETE'); S.scene = null; await loadScenes(); } });
+$('#sc-del').addEventListener('click', async () => { const sc = sceneObj(); if (sc && confirm(`Удалить карту «${sc.name}»?`)) { await api(G(`/scene/${sc.id}`), null, 'DELETE'); S.scene = null; await loadScenes(); } });
 $('#sc-img').addEventListener('change', async (e) => {
-  const f = e.target.files[0]; if (!f || !sceneObj()) return toast('Сначала создай сцену');
+  const f = e.target.files[0]; if (!f || !sceneObj()) return;
   const fd = new FormData(); fd.append('file', f);
   const r = await fetch(G('/upload'), { method: 'POST', body: fd }).then((x) => x.json());
   if (r.error) return toast('⚠️ ' + r.error);
-  saveScene({ img: r.id, w: r.w, h: r.h }, true); e.target.value = '';
+  await saveScene({ img: r.id, w: r.w, h: r.h }, true); e.target.value = '';
+  $('#grid-box').open = true; renderScenes(); toast('🖼 Картинка загружена. Подгони сетку ниже, если клетки не совпали');
 });
-for (const k of ['grid', 'ox', 'oy', 'cols', 'rows']) $('#sc-' + k).addEventListener('change', (e) => saveScene({ [k]: +e.target.value || 0 }));
-$('#sc-fog').addEventListener('change', (e) => saveScene({ fog_on: e.target.checked }));
-$('#sc-show').addEventListener('change', (e) => { saveScene({ show: e.target.checked }); toast(e.target.checked ? '🗺 Карта уйдёт игрокам' : 'Карта скрыта'); });
-$('#brush').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; MAP.brush = b.dataset.b; $$('#brush button').forEach((x) => x.classList.toggle('on', x === b)); });
+for (const k of ['grid', 'ox', 'oy', 'cols', 'rows']) $('#sc-' + k).addEventListener('change', (e) => { saveScene({ [k]: +e.target.value || 0 }); drawMap(); });
+$('#grid-box').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-g]'); if (!b) return; const sc = sceneObj(); if (!sc) return;
+  sc.grid = Math.max(10, Math.min(300, sc.grid + +b.dataset.g)); $('#sc-grid').value = sc.grid; saveScene(); drawMap();
+});
+$('#sc-fog').addEventListener('change', (e) => { saveScene({ fog_on: e.target.checked }); drawMap(); renderScenes(); });
+$('#sc-show').addEventListener('click', () => { const sc = sceneObj(); if (!sc) return; saveScene({ show: !sc.show }, true); renderScenes(); toast(sc.show ? '👁 Карта ушла игрокам в бот' : '🙈 Карта скрыта от игроков'); });
+$('#brush').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; MAP.brush = b.dataset.b; MAP.sel = null; $$('#brush button').forEach((x) => x.classList.toggle('on', x === b)); $('#map').dataset.brush = MAP.brush; renderScenes(); drawMap(); });
 $('#sc-fogall').addEventListener('click', () => { const sc = sceneObj(); if (!sc) return; const [c, r] = gridSize(sc); const fog = []; for (let x = 0; x < c; x++) for (let y = 0; y < r; y++) fog.push(`${x}:${y}`); saveScene({ fog, fog_on: true }); drawMap(); renderScenes(); });
-$('#sc-clearfog').addEventListener('click', () => { saveScene({ fog: [] }); drawMap(); });
-$('#sc-party').addEventListener('click', () => api(G('/scene'), { ...sceneObj(), party: true }));
-$('#sc-tok').addEventListener('click', () => { const sc = sceneObj(); if (!sc) return; const n = prompt('Название фишки', 'Гоблин'); if (!n) return; sc.tokens.push({ id: opId(), n, x: 0, y: 0, kind: 'npc', color: '#e0574a', size: 1, hidden: false }); saveScene(); drawMap(); });
-$('#sc-cbtok').addEventListener('click', () => {
-  const sc = sceneObj(); if (!sc || !S.combat) return; let x = 0;
-  for (const c of S.combat.list) if (c.kind === 'npc' && !sc.tokens.find((t) => t.eid === c.id)) sc.tokens.push({ id: opId(), n: c.name, x: x++, y: 3, kind: 'npc', eid: c.id, color: '#e0574a', size: 1, hidden: !!c.hidden });
-  saveScene(); drawMap();
+$('#sc-clearfog').addEventListener('click', () => { saveScene({ fog: [] }); drawMap(); renderScenes(); });
+$('#sc-party').addEventListener('click', async () => { await api(G('/scene'), { ...sceneObj(), party: true }); toast('👥 Партия на карте'); });
+function freeCell(sc) { const [c, r] = gridSize(sc); for (let y = 0; y < r; y++) for (let x = 0; x < c; x++) if (!sc.tokens.some((t) => t.x === x && t.y === y)) return { x, y }; return { x: 0, y: 0 }; }
+$('#sc-tok').addEventListener('click', () => {
+  const sc = sceneObj(); if (!sc) return; const n = prompt('Кто это? (имя фишки)', 'Гоблин'); if (!n) return;
+  const t = { id: opId(), n, ...freeCell(sc), kind: 'npc', color: '#e0574a', size: 1, hidden: false };
+  sc.tokens.push(t); MAP.sel = t.id; saveScene(); drawMap(); renderScenes();
 });
+$('#sc-cbtok').addEventListener('click', () => {
+  const sc = sceneObj(); if (!sc) return;
+  const npcs = (S.combat ? S.combat.list : []).filter((c) => c.kind === 'npc' && !sc.tokens.find((t) => t.eid === c.id));
+  if (!npcs.length) return toast('Нет противников: добавь их во вкладке «⚔️ Бой»');
+  for (const c of npcs) sc.tokens.push({ id: opId(), n: c.name, ...freeCell(sc), kind: 'npc', eid: c.id, color: '#e0574a', size: 1, hidden: !!c.hidden });
+  saveScene(); drawMap(); renderScenes(); toast(`⚔️ На карте: ${npcs.length}`);
+});
+
+/* панель выбранной фишки — вместо двойного клика и prompt */
+const TOK_COLORS = ['#e0574a', '#e3b45c', '#5cbf6a', '#6fa8dc', '#b07cd8', '#cfc4b4'];
+function renderTokPanel() {
+  const sc = sceneObj(), t = sc && sc.tokens.find((x) => x.id === MAP.sel);
+  const el = $('#tok-panel'); el.classList.toggle('hidden', !t); if (!t) return;
+  el.innerHTML = `<div class="row gap wrap"><b class="grow">${t.cid ? '🧙' : '👹'} ${esc(t.n)}</b><button class="ghost sm" data-tk="close">✕</button></div>
+    <div class="row gap wrap">
+      ${t.cid ? '' : `<input class="tk-name" value="${esc(t.n)}" placeholder="Имя">`}
+      <span class="hint">Размер</span><div class="seg tk-size">${[1, 2, 3, 4].map((n) => `<button data-sz="${n}" class="${(t.size || 1) === n ? 'on' : ''}" title="${['обычный', 'большой', 'огромный', 'исполинский'][n - 1]}">${n}×${n}</button>`).join('')}</div>
+      <div class="tk-colors">${TOK_COLORS.map((c) => `<button data-col="${c}" style="background:${c}" class="${t.color === c ? 'on' : ''}" title="Цвет"></button>`).join('')}</div>
+    </div>
+    <div class="row gap wrap"><button class="ghost sm" data-tk="hide">${t.hidden ? '👁 Показать игрокам' : '🙈 Спрятать от игроков'}</button><button class="ghost sm danger" data-tk="del">🗑 Убрать с карты</button></div>`;
+}
+$('#tok-panel').addEventListener('click', (e) => {
+  const sc = sceneObj(), t = sc && sc.tokens.find((x) => x.id === MAP.sel); if (!t) return;
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.tk === 'close') MAP.sel = null;
+  else if (b.dataset.tk === 'hide') t.hidden = !t.hidden;
+  else if (b.dataset.tk === 'del') { sc.tokens.splice(sc.tokens.indexOf(t), 1); MAP.sel = null; }
+  else if (b.dataset.sz) t.size = +b.dataset.sz;
+  else if (b.dataset.col) t.color = b.dataset.col;
+  saveScene(); drawMap(); renderScenes();
+});
+$('#tok-panel').addEventListener('change', (e) => {
+  const sc = sceneObj(), t = sc && sc.tokens.find((x) => x.id === MAP.sel);
+  if (t && e.target.classList.contains('tk-name') && e.target.value.trim()) { t.n = e.target.value.trim(); saveScene(); drawMap(); renderScenes(); }
+});
+
 function gridSize(sc) { return sc.img ? [Math.floor((sc.w - sc.ox) / sc.grid), Math.floor((sc.h - sc.oy) / sc.grid)] : [sc.cols, sc.rows]; }
 function drawMap() {
   const sc = sceneObj(), cv = $('#map'), ctx = cv.getContext('2d');
@@ -388,49 +471,48 @@ function drawMap() {
   cv.width = W; cv.height = H;
   if (sc.img && MAP.imgId !== sc.img) { MAP.img = new Image(); MAP.img.onload = drawMap; MAP.img.src = `/api/file/${sc.img}`; MAP.imgId = sc.img; return; }
   if (sc.img && MAP.img && MAP.img.complete) ctx.drawImage(MAP.img, 0, 0, W, H); else { ctx.fillStyle = '#26201b'; ctx.fillRect(0, 0, W, H); }
-  const g = sc.grid; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1;
+  const g = sc.grid; ctx.strokeStyle = sc.img ? 'rgba(0,0,0,.35)' : 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
   for (let x = sc.ox % g; x < W; x += g) { ctx.beginPath(); ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); ctx.stroke(); }
   for (let y = sc.oy % g; y < H; y += g) { ctx.beginPath(); ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); ctx.stroke(); }
   const cur = S.combat && S.combat.on ? S.combat.list[S.combat.turn] : null;
   for (const t of sc.tokens) {
-    const s = t.size || 1, x = sc.ox + t.x * g, y = sc.oy + t.y * g;
+    const s = t.size || 1, x = sc.ox + t.x * g, y = sc.oy + t.y * g, cx = x + s * g / 2, cy = y + s * g / 2;
     ctx.globalAlpha = t.hidden ? 0.45 : 1;
-    ctx.beginPath(); ctx.arc(x + s * g / 2, y + s * g / 2, s * g / 2 - 3, 0, 7); ctx.fillStyle = t.color || '#e3b45c'; ctx.fill();
-    const turn = cur && ((cur.cid && cur.cid === t.cid) || cur.id === t.eid);
-    ctx.lineWidth = turn ? 4 : 2; ctx.strokeStyle = turn ? '#fff' : '#140f0b'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, s * g / 2 - 3, 0, 7); ctx.fillStyle = t.color || '#e3b45c'; ctx.fill();
+    const turn = cur && ((cur.cid && cur.cid === t.cid) || cur.id === t.eid), sel = t.id === MAP.sel;
+    ctx.lineWidth = turn || sel ? 4 : 2; ctx.strokeStyle = sel ? '#e3b45c' : turn ? '#fff' : '#140f0b'; ctx.stroke();
     ctx.fillStyle = '#140f0b'; ctx.font = `bold ${Math.max(10, g * .34)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(t.n.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase(), x + s * g / 2, y + s * g / 2);
+    ctx.fillText(t.n.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase(), cx, cy);
+    if (g >= 36) { ctx.font = `600 ${Math.max(10, g * .22)}px system-ui`; ctx.fillStyle = '#000b'; const lb = t.n.split(/\s+/)[0].slice(0, 10), w = ctx.measureText(lb).width + 8; ctx.fillRect(cx - w / 2, y + s * g - 4, w, g * .28); ctx.fillStyle = '#efe4d2'; ctx.fillText(lb, cx, y + s * g - 4 + g * .14); }
     ctx.globalAlpha = 1;
   }
-  if (sc.fog_on) { ctx.fillStyle = 'rgba(8,6,5,.55)'; for (const k of sc.fog) { const [cx, cy] = k.split(':').map(Number); ctx.fillRect(sc.ox + cx * g, sc.oy + cy * g, g, g); } }
+  if (sc.fog_on) { ctx.fillStyle = 'rgba(8,6,5,.55)'; for (const k of sc.fog) { const [fx, fy] = k.split(':').map(Number); ctx.fillRect(sc.ox + fx * g, sc.oy + fy * g, g, g); } }
   if (MAP.ruler) {
     const r = MAP.ruler; ctx.strokeStyle = '#e3b45c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(r.x0, r.y0); ctx.lineTo(r.x1, r.y1); ctx.stroke();
     const cells = Math.max(Math.abs(Math.floor((r.x1 - sc.ox) / g) - Math.floor((r.x0 - sc.ox) / g)), Math.abs(Math.floor((r.y1 - sc.oy) / g) - Math.floor((r.y0 - sc.oy) / g)));
-    ctx.fillStyle = '#000a'; ctx.fillRect(r.x1 + 8, r.y1 - 26, 80, 24); ctx.fillStyle = '#e3b45c'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'left'; ctx.fillText(`${cells * (sc.ft || 5)} фт`, r.x1 + 14, r.y1 - 14);
+    ctx.fillStyle = '#000a'; ctx.fillRect(r.x1 + 8, r.y1 - 26, 120, 24); ctx.fillStyle = '#e3b45c'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'left'; ctx.fillText(`${cells * (sc.ft || 5)} фт · ${cells} кл.`, r.x1 + 14, r.y1 - 14);
   }
 }
 function mapPos(e) { const cv = $('#map'), r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; }
 function cellAt(sc, p) { return { cx: Math.floor((p.x - sc.ox) / sc.grid), cy: Math.floor((p.y - sc.oy) / sc.grid) }; }
+const tokenAt = (sc, cx, cy) => [...sc.tokens].reverse().find((t) => cx >= t.x && cx < t.x + (t.size || 1) && cy >= t.y && cy < t.y + (t.size || 1));
 $('#map').addEventListener('pointerdown', (e) => {
   const sc = sceneObj(); if (!sc) return; const p = mapPos(e), { cx, cy } = cellAt(sc, p);
   $('#map').setPointerCapture(e.pointerId);
-  if (e.shiftKey) { MAP.ruler = { x0: p.x, y0: p.y, x1: p.x, y1: p.y }; return; }
-  if (MAP.brush === 'move') { const t = [...sc.tokens].reverse().find((t) => cx >= t.x && cx < t.x + (t.size || 1) && cy >= t.y && cy < t.y + (t.size || 1)); if (t) MAP.drag = t; }
+  if (e.shiftKey || MAP.brush === 'ruler') { MAP.ruler = { x0: p.x, y0: p.y, x1: p.x, y1: p.y }; return; }
+  if (MAP.brush === 'move') { MAP.drag = tokenAt(sc, cx, cy) || null; MAP.moved = false; if (!MAP.drag && MAP.sel) { MAP.sel = null; renderScenes(); drawMap(); } }
   else { MAP.painting = true; paint(sc, cx, cy); }
 });
 $('#map').addEventListener('pointermove', (e) => {
   const sc = sceneObj(); if (!sc) return; const p = mapPos(e), { cx, cy } = cellAt(sc, p);
   if (MAP.ruler) { MAP.ruler.x1 = p.x; MAP.ruler.y1 = p.y; return drawMap(); }
-  if (MAP.drag && (MAP.drag.x !== cx || MAP.drag.y !== cy)) { MAP.drag.x = Math.max(0, cx); MAP.drag.y = Math.max(0, cy); drawMap(); }
+  if (MAP.drag && (MAP.drag.x !== cx || MAP.drag.y !== cy)) { MAP.drag.x = Math.max(0, cx); MAP.drag.y = Math.max(0, cy); MAP.moved = true; drawMap(); }
   if (MAP.painting) paint(sc, cx, cy);
 });
-$('#map').addEventListener('pointerup', () => { if (MAP.drag || MAP.painting) saveScene(); MAP.drag = null; MAP.painting = false; MAP.ruler = null; drawMap(); });
-$('#map').addEventListener('dblclick', (e) => {
-  const sc = sceneObj(); if (!sc) return; const { cx, cy } = cellAt(sc, mapPos(e));
-  const t = sc.tokens.find((t) => cx >= t.x && cx < t.x + (t.size || 1) && cy >= t.y && cy < t.y + (t.size || 1)); if (!t) return;
-  const a = prompt(`«${t.n}»: h — скрыть/показать, 1-4 — размер, d — удалить, или новое имя`, '');
-  if (a === null) return; if (a === 'h') t.hidden = !t.hidden; else if (/^[1-4]$/.test(a)) t.size = +a; else if (a === 'd') sc.tokens.splice(sc.tokens.indexOf(t), 1); else if (a.trim()) t.n = a.trim();
-  saveScene(); drawMap();
+$('#map').addEventListener('pointerup', () => {
+  if (MAP.drag && !MAP.moved) { MAP.sel = MAP.sel === MAP.drag.id ? null : MAP.drag.id; renderScenes(); }
+  if ((MAP.drag && MAP.moved) || MAP.painting) { saveScene(); renderScenes(); }
+  MAP.drag = null; MAP.painting = false; MAP.ruler = null; drawMap();
 });
 function paint(sc, cx, cy) {
   const k = `${cx}:${cy}`, has = sc.fog.includes(k);
